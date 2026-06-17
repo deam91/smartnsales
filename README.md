@@ -44,11 +44,11 @@ http://localhost:3000 — it redirects to `/login`, then to the `/board` kanban.
 
 ## Default login
 
-Seed a default user to log in with (idempotent — re-run to reset the password):
+Seed a demo user plus a sample project and tasks (idempotent — safe to re-run):
 
 ```bash
-docker compose exec backend uv run --no-sync python manage.py seed_user
-# → user: demo  password: demo12345
+docker compose exec backend uv run --no-sync python manage.py seed_demo
+# → user: demo  password: demo12345  (+ "Q3 Launch" project with sample tasks)
 ```
 
 ## Notes
