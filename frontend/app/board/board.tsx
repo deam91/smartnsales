@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -101,6 +102,16 @@ export function Board({
   const [creatingProject, setCreatingProject] = useState(false);
   const [dragOver, setDragOver] = useState<Task["status"] | null>(null);
   const [filters, setFilters] = useState<Filters>({ priority: "", project: "" });
+  const router = useRouter();
+
+  async function logout() {
+    try {
+      await fetch(`${API}/api/auth/logout/`, { method: "POST", credentials: "include" });
+    } finally {
+      router.push("/login");
+      router.refresh();
+    }
+  }
 
   // New/edited/moved task: prepend if new, replace in place otherwise.
   function upsert(task: Task) {
@@ -190,12 +201,20 @@ export function Board({
           <h1 className="text-2xl font-semibold tracking-tight">Board</h1>
           <p className="text-sm text-zinc-500">Drag a card between columns to move it.</p>
         </div>
-        <button
-          onClick={() => setCreatingProject(true)}
-          className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 active:scale-[0.98]"
-        >
-          New project
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCreatingProject(true)}
+            className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 active:scale-[0.98]"
+          >
+            New project
+          </button>
+          <button
+            onClick={logout}
+            className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 active:scale-[0.98]"
+          >
+            Log out
+          </button>
+        </div>
       </header>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
