@@ -35,16 +35,30 @@ const PRIORITY_CLASS: Record<number, string> = {
 };
 const priorityLabel = (v: number) => PRIORITIES.find((p) => p.value === v)?.label ?? "—";
 
+async function patchTask(id: number, body: object): Promise<Task> {
+  const res = await fetch(`${API}/api/tasks/${id}/`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error("Update failed");
+  return res.json();
+}
+
 export function Board({
   initialTasks,
-  projects,
+  initialProjects,
 }: {
   initialTasks: Task[];
-  projects: Project[];
+  initialProjects: Project[];
 }) {
   const [tasks, setTasks] = useState(initialTasks);
+  const [projects, setProjects] = useState(initialProjects);
   const [selected, setSelected] = useState<Task | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creatingTask, setCreatingTask] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [dragOver, setDragOver] = useState<Task["status"] | null>(null);
 
   function upsert(task: Task) {
     setTasks((prev) => {
@@ -56,33 +70,73 @@ export function Board({
     });
   }
 
+  // Drag-and-drop move: optimistic, reverted if the PATCH fails.
+  async function move(taskId: number, status: Task["status"]) {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task || task.status === status) return;
+    upsert({ ...task, status });
+    try {
+      upsert(await patchTask(taskId, { status }));
+    } catch {
+      upsert(task);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6">
-      <header className="mb-6 flex items-center justify-between">
+      <header className="mb-6 flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Board</h1>
-        <button
-          onClick={() => setCreating(true)}
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
-        >
-          + New task
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setCreatingProject(true)}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50"
+          >
+            + Project
+          </button>
+          <button
+            onClick={() => setCreatingTask(true)}
+            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
+          >
+            + New task
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {COLUMNS.map((col) => {
           const colTasks = tasks.filter((t) => t.status === col.key);
           return (
-            <section key={col.key} className="rounded-lg bg-gray-100 p-3">
+            <section
+              key={col.key}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(col.key);
+              }}
+              onDragLeave={() => setDragOver((s) => (s === col.key ? null : s))}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(null);
+                const id = Number(e.dataTransfer.getData("text/plain"));
+                if (id) move(id, col.key);
+              }}
+              className={`rounded-lg p-3 transition ${
+                dragOver === col.key ? "bg-gray-200 ring-2 ring-gray-400" : "bg-gray-100"
+              }`}
+            >
               <h2 className="mb-3 flex items-center justify-between text-sm font-semibold text-gray-700">
                 {col.label}
                 <span className="rounded-full bg-gray-200 px-2 text-xs">{colTasks.length}</span>
               </h2>
               <ul className="space-y-2">
                 {colTasks.map((t) => (
-                  <li key={t.id}>
+                  <li
+                    key={t.id}
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData("text/plain", String(t.id))}
+                  >
                     <button
                       onClick={() => setSelected(t)}
-                      className="w-full rounded-md bg-white p-3 text-left shadow-sm transition hover:shadow"
+                      className="w-full cursor-grab rounded-md bg-white p-3 text-left shadow-sm transition hover:shadow active:cursor-grabbing"
                     >
                       <div className="font-medium">{t.title}</div>
                       <span
@@ -94,7 +148,7 @@ export function Board({
                   </li>
                 ))}
                 {colTasks.length === 0 && (
-                  <li className="px-1 text-xs text-gray-400">No tasks</li>
+                  <li className="px-1 text-xs text-gray-400">Drop tasks here</li>
                 )}
               </ul>
             </section>
@@ -116,13 +170,22 @@ export function Board({
           }}
         />
       )}
-      {creating && (
+      {creatingTask && (
         <TaskForm
           projects={projects}
-          onClose={() => setCreating(false)}
+          onClose={() => setCreatingTask(false)}
           onCreated={(t) => {
             upsert(t);
-            setCreating(false);
+            setCreatingTask(false);
+          }}
+        />
+      )}
+      {creatingProject && (
+        <ProjectForm
+          onClose={() => setCreatingProject(false)}
+          onCreated={(p) => {
+            setProjects((prev) => [...prev, p]);
+            setCreatingProject(false);
           }}
         />
       )}
@@ -148,14 +211,7 @@ function TaskDetail({
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`${API}/api/tasks/${task.id}/`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) throw new Error();
-      onChange(await res.json());
+      onChange(await patchTask(task.id, { status }));
     } catch {
       setError("Could not update status.");
     } finally {
@@ -254,7 +310,7 @@ function TaskForm({
     <Slideover title="New task" onClose={onClose}>
       {projects.length === 0 ? (
         <p className="text-sm text-gray-600">
-          You need a project first — create one via the API or Django admin.
+          Create a project first (use the <strong>+ Project</strong> button).
         </p>
       ) : (
         <form onSubmit={onSubmit} className="space-y-3 text-sm">
@@ -311,6 +367,66 @@ function TaskForm({
           </button>
         </form>
       )}
+    </Slideover>
+  );
+}
+
+function ProjectForm({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (p: Project) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`${API}/api/projects/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: fd.get("name"),
+          description: fd.get("description"),
+        }),
+      });
+      if (!res.ok) throw new Error("Could not create project.");
+      onCreated(await res.json());
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Slideover title="New project" onClose={onClose}>
+      <form onSubmit={onSubmit} className="space-y-3 text-sm">
+        <input
+          name="name"
+          required
+          placeholder="Project name"
+          className="w-full rounded border border-gray-300 px-2 py-1.5"
+        />
+        <textarea
+          name="description"
+          placeholder="Description"
+          rows={3}
+          className="w-full rounded border border-gray-300 px-2 py-1.5"
+        />
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <button
+          disabled={busy}
+          className="w-full rounded-md bg-gray-900 px-3 py-2 font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+        >
+          {busy ? "Creating…" : "Create project"}
+        </button>
+      </form>
     </Slideover>
   );
 }

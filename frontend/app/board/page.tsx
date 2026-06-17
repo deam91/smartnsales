@@ -19,5 +19,5 @@ export default async function BoardPage() {
   const tasks = (await tasksRes.json()).results;
   const projects = projectsRes.ok ? (await projectsRes.json()).results : [];
 
-  return <Board initialTasks={tasks} projects={projects} />;
+  return <Board initialTasks={tasks} initialProjects={projects} />;
 }
