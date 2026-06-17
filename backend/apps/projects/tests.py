@@ -19,16 +19,13 @@ class VisibilityTests(TestCase):
         )
 
     def test_project_visibility(self):
+        # Strict: only owned projects, regardless of assigned tasks within.
         self.assertEqual(set(Project.objects.visible_to(self.alice)), {self.p_alice})
-        # Bob owns p_bob and is assigned a task inside p_alice → sees both.
-        self.assertEqual(
-            set(Project.objects.visible_to(self.bob)), {self.p_bob, self.p_alice}
-        )
+        self.assertEqual(set(Project.objects.visible_to(self.bob)), {self.p_bob})
         self.assertEqual(set(Project.objects.visible_to(self.carol)), set())
 
     def test_task_visibility(self):
-        # Owner of the project sees the task; so does the assignee.
-        self.assertIn(self.task, Task.objects.visible_to(self.alice))
+        # Strict: only the assignee sees the task — not the project owner.
         self.assertIn(self.task, Task.objects.visible_to(self.bob))
-        # Unrelated user sees nothing.
+        self.assertNotIn(self.task, Task.objects.visible_to(self.alice))
         self.assertEqual(list(Task.objects.visible_to(self.carol)), [])

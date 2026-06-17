@@ -4,11 +4,8 @@ from django.db import models
 
 class ProjectQuerySet(models.QuerySet):
     def visible_to(self, user):
-        # Owned projects, plus projects that contain a task assigned to the user
-        # (so an assignee can reach the parent of a task they can see).
-        return self.filter(
-            models.Q(owner=user) | models.Q(tasks__assigned_to=user)
-        ).distinct()
+        # Strict: a user sees only the projects they own.
+        return self.filter(owner=user)
 
 
 class Project(models.Model):
@@ -32,10 +29,8 @@ class Project(models.Model):
 
 class TaskQuerySet(models.QuerySet):
     def visible_to(self, user):
-        # Tasks assigned to the user, plus all tasks in projects they own.
-        return self.filter(
-            models.Q(assigned_to=user) | models.Q(project__owner=user)
-        )
+        # Strict: a user sees only the tasks assigned to them.
+        return self.filter(assigned_to=user)
 
     def with_related(self):
         return self.select_related("project", "assigned_to")
