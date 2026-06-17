@@ -9,6 +9,7 @@ export async function apiGet(path: string): Promise<Response> {
   return fetch(`${API_URL}${path}`, {
     headers: access ? { Cookie: `access_token=${access}` } : {},
     cache: "no-store",
+    signal: AbortSignal.timeout(8000), // don't hang SSR on a stuck backend
   });
 }
 

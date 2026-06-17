@@ -41,6 +41,17 @@ const priorityLabel = (v: number) => PRIORITIES.find((p) => p.value === v)?.labe
 
 type Filters = { priority: string; project: string };
 
+// All client calls go through here: same-origin base, cookies, and an 8s
+// timeout (native AbortSignal) so a hung backend rejects instead of hanging.
+const REQUEST_TIMEOUT_MS = 8000;
+function clientFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(`${API}${path}`, {
+    credentials: "include",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    ...init,
+  });
+}
+
 function tasksQuery(status: Task["status"], page: number, filters: Filters): string {
   const p = new URLSearchParams({ status, page: String(page) });
   if (filters.priority) p.set("priority", filters.priority);
@@ -49,10 +60,9 @@ function tasksQuery(status: Task["status"], page: number, filters: Filters): str
 }
 
 async function patchTask(id: number, body: object): Promise<Task> {
-  const res = await fetch(`${API}/api/tasks/${id}/`, {
+  const res = await clientFetch(`/api/tasks/${id}/`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error("Update failed");
@@ -110,10 +120,7 @@ export function Board({
     setLoggingOut(true);
     setLogoutError("");
     try {
-      const res = await fetch(`${API}/api/auth/logout/`, {
-        method: "POST",
-        credentials: "include",
-      });
+      const res = await clientFetch("/api/auth/logout/", { method: "POST" });
       if (!res.ok) throw new Error();
       // Only leave once the server confirmed it cleared/blacklisted the token.
       router.push("/login");
@@ -141,9 +148,7 @@ export function Board({
       loadingRef.current[status] = true;
       const next = page[status] + 1;
       try {
-        const res = await fetch(`${API}${tasksQuery(status, next, filters)}`, {
-          credentials: "include",
-        });
+        const res = await clientFetch(tasksQuery(status, next, filters));
         if (!res.ok) return;
         const data = await res.json();
         setTasks((prev) => {
@@ -152,6 +157,8 @@ export function Board({
         });
         setPage((p) => ({ ...p, [status]: next }));
         setHasMore((h) => ({ ...h, [status]: Boolean(data.next) }));
+      } catch {
+        // timeout/network — sentinel re-triggers on the next scroll
       } finally {
         loadingRef.current[status] = false;
       }
@@ -171,10 +178,9 @@ export function Board({
     (async () => {
       const cols = await Promise.all(
         COLUMNS.map(async (c) => {
-          const res = await fetch(`${API}${tasksQuery(c.key, 1, filters)}`, {
-            credentials: "include",
-          });
-          const data = res.ok ? await res.json() : { results: [], next: null };
+          const data = await clientFetch(tasksQuery(c.key, 1, filters))
+            .then((res) => (res.ok ? res.json() : { results: [], next: null }))
+            .catch(() => ({ results: [], next: null })); // timeout/network → empty
           return { key: c.key, results: data.results as Task[], hasMore: Boolean(data.next) };
         }),
       );
@@ -492,10 +498,7 @@ function TaskDetail({
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`${API}/api/tasks/${task.id}/`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const res = await clientFetch(`/api/tasks/${task.id}/`, { method: "DELETE" });
       if (!res.ok && res.status !== 204) throw new Error();
       onDelete(task.id);
     } catch {
@@ -583,9 +586,8 @@ export function AssigneePicker({ onSelect }: { onSelect: (u: UserOption) => void
     // Throttle: only fire 250ms after typing stops.
     const handle = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `${API}/api/auth/users/?search=${encodeURIComponent(term)}`,
-          { credentials: "include" },
+        const res = await clientFetch(
+          `/api/auth/users/?search=${encodeURIComponent(term)}`,
         );
         if (!res.ok) return;
         const data = await res.json();
@@ -693,10 +695,9 @@ function TaskForm({
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`${API}/api/tasks/`, {
+      const res = await clientFetch("/api/tasks/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({
           title: fd.get("title"),
           description: fd.get("description"),
@@ -780,10 +781,9 @@ function ProjectForm({
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`${API}/api/projects/`, {
+      const res = await clientFetch("/api/projects/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({
           name: fd.get("name"),
           description: fd.get("description"),

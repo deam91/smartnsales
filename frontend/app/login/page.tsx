@@ -20,6 +20,7 @@ export default function LoginPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include", // store the httpOnly JWT cookies
+        signal: AbortSignal.timeout(8000),
         body: JSON.stringify({
           username: form.get("username"),
           password: form.get("password"),

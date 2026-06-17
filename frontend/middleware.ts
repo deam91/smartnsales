@@ -20,24 +20,30 @@ export async function middleware(request: NextRequest) {
   // second replays a just-blacklisted token → that one request falls to
   // /login). Acceptable; the next navigation renews cleanly.
   if (!hasAccess && refresh) {
-    const res = await fetch(`${API_URL}/api/auth/refresh/`, {
-      method: "POST",
-      headers: { Cookie: `refresh_token=${refresh}` },
-    });
-    if (res.ok) {
-      const setCookies = res.headers.getSetCookie();
-      const newAccess = cookieValue(setCookies, "access_token");
+    try {
+      const res = await fetch(`${API_URL}/api/auth/refresh/`, {
+        method: "POST",
+        headers: { Cookie: `refresh_token=${refresh}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        const setCookies = res.headers.getSetCookie();
+        const newAccess = cookieValue(setCookies, "access_token");
 
-      // Authenticate THIS request too: forward the fresh access cookie upstream
-      // so the server component's fetch is already authed.
-      const headers = new Headers(request.headers);
-      if (newAccess) {
-        headers.set("cookie", `access_token=${newAccess}; refresh_token=${refresh}`);
+        // Authenticate THIS request too: forward the fresh access cookie upstream
+        // so the server component's fetch is already authed.
+        const headers = new Headers(request.headers);
+        if (newAccess) {
+          headers.set("cookie", `access_token=${newAccess}; refresh_token=${refresh}`);
+        }
+        const response = NextResponse.next({ request: { headers } });
+        // ...and hand the new (httpOnly) cookies to the browser verbatim.
+        for (const c of setCookies) response.headers.append("set-cookie", c);
+        return response;
       }
-      const response = NextResponse.next({ request: { headers } });
-      // ...and hand the new (httpOnly) cookies to the browser verbatim.
-      for (const c of setCookies) response.headers.append("set-cookie", c);
-      return response;
+    } catch {
+      // refresh unreachable/timeout → fall through; the page's own fetch will
+      // 401 and redirect to /login.
     }
   }
   return NextResponse.next();
