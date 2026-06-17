@@ -8,7 +8,7 @@ from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from .serializers import RegisterSerializer, UserSerializer
+from .serializers import RegisterSerializer
 
 ACCESS_MAX_AGE = int(jwt_settings.ACCESS_TOKEN_LIFETIME.total_seconds())
 REFRESH_MAX_AGE = int(jwt_settings.REFRESH_TOKEN_LIFETIME.total_seconds())
@@ -26,14 +26,6 @@ def _set_cookie(response, key, value, max_age):
     )
 
 
-def _set_access(response, token):
-    _set_cookie(response, settings.JWT_ACCESS_COOKIE, token, ACCESS_MAX_AGE)
-
-
-def _set_refresh(response, token):
-    _set_cookie(response, settings.JWT_REFRESH_COOKIE, token, REFRESH_MAX_AGE)
-
-
 class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = RegisterSerializer
@@ -47,8 +39,8 @@ class LoginView(TokenObtainPairView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         response = Response({"detail": "Login successful"})
-        _set_access(response, str(data["access"]))
-        _set_refresh(response, str(data["refresh"]))
+        _set_cookie(response, settings.JWT_ACCESS_COOKIE, str(data["access"]), ACCESS_MAX_AGE)
+        _set_cookie(response, settings.JWT_REFRESH_COOKIE, str(data["refresh"]), REFRESH_MAX_AGE)
         return response
 
 
@@ -70,9 +62,9 @@ class RefreshView(TokenRefreshView):
             raise InvalidToken(exc.args[0]) from exc
         data = serializer.validated_data
         response = Response({"detail": "Token refreshed"})
-        _set_access(response, str(data["access"]))
+        _set_cookie(response, settings.JWT_ACCESS_COOKIE, str(data["access"]), ACCESS_MAX_AGE)
         if "refresh" in data:  # ROTATE_REFRESH_TOKENS is on
-            _set_refresh(response, str(data["refresh"]))
+            _set_cookie(response, settings.JWT_REFRESH_COOKIE, str(data["refresh"]), REFRESH_MAX_AGE)
         return response
 
 
@@ -96,4 +88,5 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        return Response(UserSerializer(request.user).data)
+        user = request.user
+        return Response({"id": user.id, "username": user.username, "email": user.email})

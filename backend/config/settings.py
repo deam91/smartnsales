@@ -2,13 +2,9 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Local dev convenience; in Docker the env comes from compose env_file.
-load_dotenv(BASE_DIR / ".env")
-
+# Env comes from compose env_file (os.environ); no dotenv loader needed.
 # ponytail: dev fallback so it boots without env; prod MUST set DJANGO_SECRET_KEY.
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY", "dev-insecure-secret-key-change-me-in-production"
