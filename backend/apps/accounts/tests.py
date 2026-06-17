@@ -45,3 +45,15 @@ class AuthFlowTests(APITestCase):
 
         self.client.post("/api/auth/logout/")
         self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)
+
+    def test_logout_revokes_refresh_token_server_side(self):
+        User.objects.create_user("dave", password=PW)
+        self.client.post(
+            "/api/auth/login/", {"username": "dave", "password": PW}, format="json"
+        )
+        stolen_refresh = self.client.cookies["refresh_token"].value
+        self.client.post("/api/auth/logout/")
+
+        # Even replaying the old refresh cookie, the token is blacklisted → 401.
+        self.client.cookies["refresh_token"] = stolen_refresh
+        self.assertEqual(self.client.post("/api/auth/refresh/").status_code, 401)

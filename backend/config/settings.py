@@ -25,6 +25,8 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
+    "drf_spectacular",
     "apps.accounts",
     "apps.projects",
 ]
@@ -87,13 +89,22 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
-# No rotation/blacklist: logout clears the cookie, access tokens expire fast.
-# Real server-side revocation would need the token_blacklist app.
+# Server-side revocation via the token_blacklist app: rotating on refresh
+# blacklists the old refresh token, and logout blacklists the current one.
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "SmartNSales API",
+    "VERSION": "0.1.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 # JWTs live in httpOnly cookies (never in JS/localStorage).

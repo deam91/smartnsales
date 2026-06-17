@@ -3,7 +3,9 @@ from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .serializers import RegisterSerializer, UserSerializer
@@ -61,7 +63,11 @@ class RefreshView(TokenRefreshView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
         serializer = self.get_serializer(data={"refresh": raw_refresh})
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as exc:
+            # Expired, malformed, or blacklisted (revoked) → 401, not 500.
+            raise InvalidToken(exc.args[0]) from exc
         data = serializer.validated_data
         response = Response({"detail": "Token refreshed"})
         _set_access(response, str(data["access"]))
@@ -74,6 +80,12 @@ class LogoutView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
+        raw_refresh = request.COOKIES.get(settings.JWT_REFRESH_COOKIE)
+        if raw_refresh:
+            try:
+                RefreshToken(raw_refresh).blacklist()  # server-side revocation
+            except TokenError:
+                pass  # already expired/invalid — nothing to revoke
         response = Response({"detail": "Logged out"})
         response.delete_cookie(settings.JWT_ACCESS_COOKIE, path="/")
         response.delete_cookie(settings.JWT_REFRESH_COOKIE, path="/")
