@@ -34,9 +34,6 @@ class TaskQuerySet(models.QuerySet):
             models.Q(assigned_to=user) | models.Q(project__owner=user)
         )
 
-    def with_related(self):
-        return self.select_related("project", "assigned_to")
-
 
 class Task(models.Model):
     class Status(models.TextChoices):

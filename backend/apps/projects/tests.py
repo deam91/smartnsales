@@ -50,7 +50,7 @@ class ProjectApiIsolationTests(APITestCase):
     def test_users_only_see_own_projects(self):
         p = Project.objects.create(name="secret", owner=self.alice)
         self.login("bob")
-        listed = [row["id"] for row in self.client.get("/api/projects/").data]
+        listed = [row["id"] for row in self.client.get("/api/projects/").data["results"]]
         self.assertNotIn(p.id, listed)
         self.assertEqual(self.client.get(f"/api/projects/{p.id}/").status_code, 404)
 
@@ -67,3 +67,33 @@ class ProjectApiIsolationTests(APITestCase):
             "/api/tasks/", {"title": "x", "project": p.id}, format="json"
         )
         self.assertEqual(r.status_code, 400)
+
+
+class TaskFilterOrderingTests(APITestCase):
+    def setUp(self):
+        self.alice = User.objects.create_user("alice", password="x")
+        self.project = Project.objects.create(name="P", owner=self.alice)
+        Task.objects.create(
+            title="todo1", project=self.project, status="todo", priority=1
+        )
+        Task.objects.create(
+            title="done1", project=self.project, status="done", priority=4
+        )
+        self.client.post(
+            "/api/auth/login/", {"username": "alice", "password": "x"}, format="json"
+        )
+
+    def test_filter_by_status(self):
+        rows = self.client.get("/api/tasks/?status=done").data["results"]
+        self.assertEqual([t["title"] for t in rows], ["done1"])
+
+    def test_bad_numeric_filter_is_ignored(self):
+        # ?priority=abc must not 500; it's silently dropped → all tasks returned.
+        r = self.client.get("/api/tasks/?priority=abc")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data["count"], 2)
+
+    def test_ordering(self):
+        rows = self.client.get("/api/tasks/?ordering=status").data["results"]
+        statuses = [t["status"] for t in rows]
+        self.assertEqual(statuses, sorted(statuses))
