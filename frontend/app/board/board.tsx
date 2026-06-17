@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
+import { friendlyError, useToast } from "../toast";
+
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export type Task = {
@@ -113,20 +115,19 @@ export function Board({
   const [dragOver, setDragOver] = useState<Task["status"] | null>(null);
   const [filters, setFilters] = useState<Filters>({ priority: "", project: "" });
   const router = useRouter();
+  const toast = useToast();
   const [loggingOut, setLoggingOut] = useState(false);
-  const [logoutError, setLogoutError] = useState("");
 
   async function logout() {
     setLoggingOut(true);
-    setLogoutError("");
     try {
       const res = await clientFetch("/api/auth/logout/", { method: "POST" });
       if (!res.ok) throw new Error();
       // Only leave once the server confirmed it cleared/blacklisted the token.
       router.push("/login");
       router.refresh();
-    } catch {
-      setLogoutError("Could not log out. Check your connection and try again.");
+    } catch (err) {
+      toast(friendlyError(err, "Could not log out. Try again."), "error");
       setLoggingOut(false);
     }
   }
@@ -206,8 +207,9 @@ export function Board({
     upsert({ ...task, status });
     try {
       upsert(await patchTask(taskId, { status }));
-    } catch {
-      upsert(task);
+    } catch (err) {
+      upsert(task); // revert
+      toast(friendlyError(err, "Couldn't move the task."), "error");
     }
   }
 
@@ -234,11 +236,6 @@ export function Board({
           </button>
         </div>
       </header>
-      {logoutError && (
-        <p role="alert" className="mb-4 text-sm text-rose-600">
-          {logoutError}
-        </p>
-      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <select
@@ -470,39 +467,44 @@ function TaskDetail({
   onChange: (t: Task) => void;
   onDelete: (id: number) => void;
 }) {
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
 
   async function setStatus(status: Task["status"]) {
     onChange({ ...task, status }); // instant; sync below
-    setError("");
     try {
       onChange(await patchTask(task.id, { status }));
-    } catch {
+    } catch (err) {
       onChange(task); // revert
-      setError("Could not update status.");
+      toast(friendlyError(err, "Couldn't update the status."), "error");
     }
   }
 
   async function setAssignee(userId: number | null) {
-    setError("");
     try {
-      onChange(await patchTask(task.id, { assigned_to: userId }));
-    } catch {
-      setError("Could not update assignee.");
+      const updated = await patchTask(task.id, { assigned_to: userId });
+      onChange(updated);
+      toast(
+        updated.assignee_username
+          ? `Assigned to @${updated.assignee_username}`
+          : "Assignee removed",
+        "success",
+      );
+    } catch (err) {
+      toast(friendlyError(err, "Couldn't update the assignee."), "error");
     }
   }
 
   async function del() {
     setBusy(true);
-    setError("");
     try {
       const res = await clientFetch(`/api/tasks/${task.id}/`, { method: "DELETE" });
       if (!res.ok && res.status !== 204) throw new Error();
       onDelete(task.id);
-    } catch {
-      setError("Could not delete task.");
+      toast("Task deleted", "success");
+    } catch (err) {
+      toast(friendlyError(err, "Couldn't delete the task."), "error");
       setBusy(false);
       setConfirming(false);
     }
@@ -547,7 +549,6 @@ function TaskDetail({
           </select>
         </Field>
       </dl>
-      {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
       <button
         onClick={() => setConfirming(true)}
         className="mt-8 rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50 active:scale-[0.98]"
@@ -686,14 +687,13 @@ function TaskForm({
   onClose: () => void;
   onCreated: (t: Task) => void;
 }) {
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setBusy(true);
-    setError("");
     try {
       const res = await clientFetch("/api/tasks/", {
         method: "POST",
@@ -707,10 +707,11 @@ function TaskForm({
           project: Number(fd.get("project")),
         }),
       });
-      if (!res.ok) throw new Error("Could not create task.");
+      if (!res.ok) throw new Error();
       onCreated(await res.json());
+      toast("Task created", "success");
     } catch (err) {
-      setError((err as Error).message);
+      toast(friendlyError(err, "Could not create the task."), "error");
       setBusy(false);
     }
   }
@@ -755,7 +756,6 @@ function TaskForm({
             <label className="text-sm font-medium text-zinc-700">Due date</label>
             <input name="due_date" type="date" className={INPUT} />
           </div>
-          {error && <p className="text-sm text-rose-600">{error}</p>}
           <button disabled={busy} className={`w-full ${PRIMARY_BTN}`}>
             {busy ? "Creating…" : "Create task"}
           </button>
@@ -772,14 +772,13 @@ function ProjectForm({
   onClose: () => void;
   onCreated: (p: Project) => void;
 }) {
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setBusy(true);
-    setError("");
     try {
       const res = await clientFetch("/api/projects/", {
         method: "POST",
@@ -789,10 +788,11 @@ function ProjectForm({
           description: fd.get("description"),
         }),
       });
-      if (!res.ok) throw new Error("Could not create project.");
+      if (!res.ok) throw new Error();
       onCreated(await res.json());
+      toast("Project created", "success");
     } catch (err) {
-      setError((err as Error).message);
+      toast(friendlyError(err, "Could not create the project."), "error");
       setBusy(false);
     }
   }
@@ -808,7 +808,6 @@ function ProjectForm({
           <label className="text-sm font-medium text-zinc-700">Description</label>
           <textarea name="description" rows={3} className={INPUT} />
         </div>
-        {error && <p className="text-sm text-rose-600">{error}</p>}
         <button disabled={busy} className={`w-full ${PRIMARY_BTN}`}>
           {busy ? "Creating…" : "Create project"}
         </button>
