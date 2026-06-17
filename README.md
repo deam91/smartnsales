@@ -49,6 +49,7 @@ Seed a demo user plus a sample project and tasks (idempotent — safe to re-run)
 ```bash
 docker compose exec backend uv run --no-sync python manage.py seed_demo
 # → user: demo  password: demo12345  (+ "Q3 Launch" project with 100 sample tasks)
+# → 10 teammates you can assign tasks to: nadia, theo, priya, … (password: <username>*123)
 ```
 
 ## Notes

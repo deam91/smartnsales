@@ -57,3 +57,20 @@ class AuthFlowTests(APITestCase):
         # Even replaying the old refresh cookie, the token is blacklisted → 401.
         self.client.cookies["refresh_token"] = stolen_refresh
         self.assertEqual(self.client.post("/api/auth/refresh/").status_code, 401)
+
+
+class UserSearchTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("nadia", password=PW)
+        User.objects.create_user("nathan", password=PW)
+        User.objects.create_user("omar", password=PW)
+
+    def test_requires_authentication(self):
+        self.assertEqual(self.client.get("/api/auth/users/").status_code, 401)
+
+    def test_prefix_search_returns_matching_usernames(self):
+        self.client.force_authenticate(self.user)
+        names = [
+            u["username"] for u in self.client.get("/api/auth/users/?search=na").data["results"]
+        ]
+        self.assertEqual(set(names), {"nadia", "nathan"})  # prefix 'na', not 'omar'

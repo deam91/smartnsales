@@ -21,5 +21,16 @@ export default async function BoardPage() {
   });
 
   const projects = await apiGetAll("/api/projects/");
-  return <Board initial={initial} initialProjects={projects.results as Project[]} />;
+
+  // Current user id → the board only offers the assignee picker on projects you own.
+  const meRes = await apiGet("/api/auth/me/");
+  const currentUserId = meRes.ok ? (await meRes.json()).id : null;
+
+  return (
+    <Board
+      initial={initial}
+      initialProjects={projects.results as Project[]}
+      currentUserId={currentUserId}
+    />
+  );
 }

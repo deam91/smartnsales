@@ -1,5 +1,7 @@
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from rest_framework import generics, status
+from rest_framework.filters import SearchFilter
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -8,7 +10,7 @@ from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from .serializers import RegisterSerializer
+from .serializers import RegisterSerializer, UserSerializer
 
 ACCESS_MAX_AGE = int(jwt_settings.ACCESS_TOKEN_LIFETIME.total_seconds())
 REFRESH_MAX_AGE = int(jwt_settings.REFRESH_TOKEN_LIFETIME.total_seconds())
@@ -29,6 +31,15 @@ def _set_cookie(response, key, value, max_age):
 class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = RegisterSerializer
+
+
+class UserSearchView(generics.ListAPIView):
+    """Username autocomplete for the assignee picker (prefix match)."""
+
+    serializer_class = UserSerializer
+    filter_backends = [SearchFilter]
+    search_fields = ["^username"]
+    queryset = get_user_model().objects.order_by("username")
 
 
 class LoginView(TokenObtainPairView):

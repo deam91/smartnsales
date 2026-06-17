@@ -12,9 +12,11 @@ export type Task = {
   priority: number;
   due_date: string | null;
   assigned_to: number | null;
+  assignee_username: string | null;
   project: number;
 };
-export type Project = { id: number; name: string };
+export type Project = { id: number; name: string; owner: number };
+type UserOption = { id: number; username: string };
 export type BoardInit = Record<Task["status"], { tasks: Task[]; hasMore: boolean }>;
 
 const COLUMNS: { key: Task["status"]; label: string }[] = [
@@ -66,9 +68,11 @@ const PRIMARY_BTN =
 export function Board({
   initial,
   initialProjects,
+  currentUserId,
 }: {
   initial: BoardInit;
   initialProjects: Project[];
+  currentUserId: number | null;
 }) {
   const [tasks, setTasks] = useState<Task[]>(() => [
     ...initial.todo.tasks,
@@ -262,6 +266,10 @@ export function Board({
       {selected && (
         <TaskDetail
           task={selected}
+          canAssign={
+            currentUserId != null &&
+            projects.find((p) => p.id === selected.project)?.owner === currentUserId
+          }
           onClose={() => setSelected(null)}
           onChange={(t) => {
             upsert(t);
@@ -372,11 +380,16 @@ function Column({
                 className="w-full cursor-grab rounded-xl border border-zinc-200/80 bg-white p-3 text-left shadow-[0_1px_2px_rgba(24,24,27,0.04)] transition hover:-translate-y-px hover:shadow-[0_8px_20px_-8px_rgba(24,24,27,0.15)] active:translate-y-0 active:scale-[0.99] active:cursor-grabbing"
               >
                 <div className="text-sm font-medium text-zinc-900">{t.title}</div>
-                <span
-                  className={`mt-2 inline-block rounded-md px-1.5 py-0.5 text-xs font-medium ${PRIORITY_CLASS[t.priority]}`}
-                >
-                  {priorityLabel(t.priority)}
-                </span>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span
+                    className={`inline-block rounded-md px-1.5 py-0.5 text-xs font-medium ${PRIORITY_CLASS[t.priority]}`}
+                  >
+                    {priorityLabel(t.priority)}
+                  </span>
+                  {t.assignee_username && (
+                    <span className="truncate text-xs text-zinc-400">@{t.assignee_username}</span>
+                  )}
+                </div>
               </button>
             </li>
           ))}
@@ -404,11 +417,13 @@ function Column({
 
 function TaskDetail({
   task,
+  canAssign,
   onClose,
   onChange,
   onDelete,
 }: {
   task: Task;
+  canAssign: boolean;
   onClose: () => void;
   onChange: (t: Task) => void;
   onDelete: (id: number) => void;
@@ -425,6 +440,15 @@ function TaskDetail({
     } catch {
       onChange(task); // revert
       setError("Could not update status.");
+    }
+  }
+
+  async function setAssignee(userId: number | null) {
+    setError("");
+    try {
+      onChange(await patchTask(task.id, { assigned_to: userId }));
+    } catch {
+      setError("Could not update assignee.");
     }
   }
 
@@ -451,6 +475,25 @@ function TaskDetail({
         <Field label="Description">{task.description || "—"}</Field>
         <Field label="Priority">{priorityLabel(task.priority)}</Field>
         <Field label="Due date">{task.due_date ?? "—"}</Field>
+        <Field label="Assignee">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-zinc-900">
+                {task.assignee_username ? `@${task.assignee_username}` : "Unassigned"}
+              </span>
+              {canAssign && task.assigned_to != null && (
+                <button
+                  type="button"
+                  onClick={() => setAssignee(null)}
+                  className="text-xs text-zinc-400 transition hover:text-rose-600"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            {canAssign && <AssigneePicker onSelect={(u) => setAssignee(u.id)} />}
+          </div>
+        </Field>
         <Field label="Status">
           <select
             value={task.status}
@@ -483,6 +526,114 @@ function TaskDetail({
         />
       )}
     </Slideover>
+  );
+}
+
+// Accessible combobox: debounced username search, "@" prefix, keyboard nav.
+export function AssigneePicker({ onSelect }: { onSelect: (u: UserOption) => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<UserOption[]>([]);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const listId = "assignee-listbox";
+
+  useEffect(() => {
+    const term = query.trim();
+    if (!term) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+    // Throttle: only fire 250ms after typing stops.
+    const handle = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `${API}/api/auth/users/?search=${encodeURIComponent(term)}`,
+          { credentials: "include" },
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        setResults(data.results as UserOption[]);
+        setOpen(true);
+        setActive(-1);
+      } catch {
+        /* transient network error — user can retype */
+      }
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [query]);
+
+  function choose(u: UserOption) {
+    onSelect(u);
+    setQuery("");
+    setResults([]);
+    setOpen(false);
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (!open || results.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((a) => (a + 1) % results.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((a) => (a - 1 + results.length) % results.length);
+    } else if (e.key === "Enter" && active >= 0) {
+      e.preventDefault();
+      choose(results[active]);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex items-center rounded-lg border border-zinc-200 px-2 focus-within:ring-2 focus-within:ring-emerald-500/30">
+        <span aria-hidden="true" className="text-sm text-zinc-400">
+          @
+        </span>
+        <input
+          type="text"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-label="Assign to username"
+          aria-activedescendant={active >= 0 ? `assignee-opt-${active}` : undefined}
+          placeholder="username"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={onKeyDown}
+          className="w-full bg-transparent px-1 py-1.5 text-sm outline-none"
+        />
+      </div>
+      {open && results.length > 0 && (
+        <ul
+          id={listId}
+          role="listbox"
+          className="scroll-stylish absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-lg"
+        >
+          {results.map((u, i) => (
+            <li
+              key={u.id}
+              id={`assignee-opt-${i}`}
+              role="option"
+              aria-selected={i === active}
+              onMouseDown={(e) => {
+                e.preventDefault(); // keep input focus / fire before blur
+                choose(u);
+              }}
+              onMouseEnter={() => setActive(i)}
+              className={`cursor-pointer px-3 py-1.5 text-sm ${
+                i === active ? "bg-emerald-50 text-emerald-800" : "text-zinc-700"
+              }`}
+            >
+              @{u.username}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

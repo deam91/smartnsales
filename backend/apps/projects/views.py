@@ -27,7 +27,9 @@ class TaskViewSet(viewsets.ModelViewSet):
     ordering_fields = ["priority", "due_date", "status", "created_at", "updated_at"]
 
     def get_queryset(self):
-        qs = Task.objects.visible_to(self.request.user)
+        qs = Task.objects.visible_to(self.request.user).select_related(
+            "project", "assigned_to"
+        )
         # Whitelisted exact-match filters. Numeric params are isdigit-guarded so
         # a bad value is ignored rather than raising a 500. ponytail: a few lines
         # beat pulling in django-filter for four exact-match fields.

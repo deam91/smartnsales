@@ -6,6 +6,19 @@ from apps.projects.models import Project, Task
 DEFAULT_USERNAME = "demo"
 DEFAULT_PASSWORD = "demo12345"
 PROJECT_NAME = "Q3 Launch"
+# Teammates the project owner can assign tasks to (login: <username>*123).
+TEAM_USERNAMES = [
+    "nadia",
+    "theo",
+    "priya",
+    "marcus",
+    "lena",
+    "omar",
+    "sofia",
+    "yusuf",
+    "greta",
+    "dmitri",
+]
 
 STATUSES = [Task.Status.TODO, Task.Status.IN_PROGRESS, Task.Status.DONE]
 PRIORITIES = [
@@ -56,6 +69,15 @@ class Command(BaseCommand):
         user.set_password(DEFAULT_PASSWORD)  # idempotent: always (re)sets it
         user.save(update_fields=["password"])
 
+        team = []
+        for username in TEAM_USERNAMES:
+            member, _ = User.objects.get_or_create(
+                username=username, defaults={"email": f"{username}@example.com"}
+            )
+            member.set_password(f"{username}*123")  # real login: <username>*123
+            member.save(update_fields=["password"])
+            team.append(member)
+
         project, _ = Project.objects.get_or_create(
             name=PROJECT_NAME,
             owner=user,
@@ -64,10 +86,11 @@ class Command(BaseCommand):
 
         created_tasks = 0
         if not project.tasks.exists():  # don't duplicate on re-run
+            assignees = [user, *team]  # cycle so cards show varied @usernames
             Task.objects.bulk_create(
                 Task(
                     project=project,
-                    assigned_to=user,
+                    assigned_to=assignees[i % len(assignees)],
                     title=_title(i),
                     status=STATUSES[i % len(STATUSES)],
                     priority=PRIORITIES[i % len(PRIORITIES)],
@@ -79,6 +102,6 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Seeded user '{DEFAULT_USERNAME}' (password: {DEFAULT_PASSWORD}), "
-                f"project '{PROJECT_NAME}', +{created_tasks} tasks."
+                f"{len(team)} teammates, project '{PROJECT_NAME}', +{created_tasks} tasks."
             )
         )
