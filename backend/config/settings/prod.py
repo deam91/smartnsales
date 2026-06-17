@@ -19,6 +19,15 @@ if not os.environ.get("DJANGO_ALLOWED_HOSTS"):
 
 # HTTPS / secure-cookie hardening (addresses `check --deploy`).
 JWT_COOKIE_SECURE = os.environ.get("JWT_COOKIE_SECURE", "1") == "1"
+
+# Hashed, compressed static files served by WhiteNoise (run collectstatic first).
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    },
+}
+
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True

@@ -28,6 +28,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # serve static without a CDN
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -143,7 +144,18 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"  # collectstatic target (served by WhiteNoise)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Cache: Redis when REDIS_URL is set (compose/prod), in-memory otherwise (tests/CI).
+REDIS_URL = os.environ.get("REDIS_URL")
+CACHES = {
+    "default": (
+        {"BACKEND": "django.core.cache.backends.redis.RedisCache", "LOCATION": REDIS_URL}
+        if REDIS_URL
+        else {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
+    )
+}
 
 # Logs go to stderr (the container collects them); level via DJANGO_LOG_LEVEL.
 LOGGING = {

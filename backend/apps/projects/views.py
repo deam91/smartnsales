@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.db.models import Count, Q
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
@@ -17,6 +18,11 @@ class DashboardView(APIView):
     @extend_schema(responses=DashboardSerializer)
     def get(self, request):
         user = request.user
+        cache_key = f"dashboard:{user.id}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         today = timezone.localdate()
         not_done = ~Q(status=Task.Status.DONE)
 
@@ -31,18 +37,18 @@ class DashboardView(APIView):
                 & not_done,
             ),
         )
-        return Response(
-            {
-                "projects": Project.objects.visible_to(user).count(),
-                "tasks": {
-                    "todo": counts["todo"],
-                    "in_progress": counts["in_progress"],
-                    "done": counts["done"],
-                },
-                "overdue": counts["overdue"],
-                "due_this_week": counts["due_this_week"],
-            }
-        )
+        data = {
+            "projects": Project.objects.visible_to(user).count(),
+            "tasks": {
+                "todo": counts["todo"],
+                "in_progress": counts["in_progress"],
+                "done": counts["done"],
+            },
+            "overdue": counts["overdue"],
+            "due_this_week": counts["due_this_week"],
+        }
+        cache.set(cache_key, data, 30)  # short TTL; no explicit invalidation
+        return Response(data)
 
 
 class ProjectViewSet(viewsets.ModelViewSet):

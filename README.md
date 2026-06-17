@@ -73,9 +73,22 @@ docker compose exec frontend npm test   # frontend — vitest + React Testing Li
 
 Settings are split: `config.settings.dev` (default) and `config.settings.prod`.
 For production set `DJANGO_SETTINGS_MODULE=config.settings.prod` — it refuses to
-boot without `DJANGO_SECRET_KEY` + `POSTGRES_PASSWORD`, and turns on SSL redirect,
-HSTS, and secure cookies. Tunables: `DJANGO_LOG_LEVEL`, `DJANGO_CONN_MAX_AGE`,
-`TRUST_PROXY_SSL_HEADER=1` (only behind a proxy that overwrites `X-Forwarded-Proto`).
+boot without `DJANGO_SECRET_KEY` + `POSTGRES_PASSWORD` + `DJANGO_ALLOWED_HOSTS`,
+and turns on SSL redirect, HSTS, and secure cookies. Tunables: `DJANGO_LOG_LEVEL`,
+`DJANGO_CONN_MAX_AGE`, `REDIS_URL`, `TRUST_PROXY_SSL_HEADER=1` (only behind a proxy
+that overwrites `X-Forwarded-Proto`).
+
+Serve with a real WSGI server (not `runserver`); static is collected + served by
+WhiteNoise:
+
+```bash
+python manage.py collectstatic --noinput
+gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
+```
+
+Caching uses Redis when `REDIS_URL` is set (the dashboard is cached per-user, 30s),
+in-memory otherwise. CI runs `ruff` + `pytest` (with coverage) + `vitest` —
+`.github/workflows/ci.yml`.
 
 ## Notes
 

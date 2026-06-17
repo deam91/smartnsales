@@ -42,3 +42,8 @@ next-env.d.ts
 # Playwright MCP artifacts
 .playwright-mcp/
 *.png
+
+# Python coverage / pytest
+.coverage
+htmlcov/
+.pytest_cache/
