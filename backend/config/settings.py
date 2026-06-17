@@ -106,8 +106,9 @@ SPECTACULAR_SETTINGS = {
 # JWTs live in httpOnly cookies (never in JS/localStorage).
 JWT_ACCESS_COOKIE = "access_token"
 JWT_REFRESH_COOKIE = "refresh_token"
-# Secure=True in prod (https). SameSite=Lax works for same-site localhost dev.
-JWT_COOKIE_SECURE = os.environ.get("JWT_COOKIE_SECURE", "0") == "1"
+# Secure cookies follow DEBUG by default (override per env if needed).
+# SameSite=Lax works for same-site localhost dev.
+JWT_COOKIE_SECURE = os.environ.get("JWT_COOKIE_SECURE", "0" if DEBUG else "1") == "1"
 JWT_COOKIE_SAMESITE = os.environ.get("JWT_COOKIE_SAMESITE", "Lax")
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -124,3 +125,14 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Production hardening (kept off in DEBUG/dev). Addresses `check --deploy`
+# W004/W008/W012/W016. Behind a TLS-terminating proxy, hence SECURE_PROXY_SSL_HEADER.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
