@@ -12,7 +12,19 @@ nginx       reverse proxy  → http://localhost:3000   (the only published port)
 backend/    Django 5 + DRF (JWT)            (internal :8000)
 frontend/   Next.js (App Router, Tailwind)  (internal :3000)
 db          PostgreSQL 17                   (internal)
+redis       cache (dashboard)              (internal)
 ```
+
+## Features
+
+- **Kanban board** — To Do / In Progress / Done with drag-and-drop, optimistic
+  moves, per-column infinite scroll, and `priority`/`project` filters.
+- **Tasks** — slide-over detail, create/edit/delete (with a confirm modal),
+  status changes, and an **assignee picker** (debounced name autocomplete).
+- **Dashboard** — projects, tasks-by-status, overdue, and due-this-week counts.
+- **Auth** — register/login/refresh/logout with JWT in httpOnly cookies, per-user
+  authorization (you see only your projects + tasks assigned to you).
+- Success/error **toasts**, request timeouts, and friendly error messages.
 
 ## API
 
@@ -28,8 +40,11 @@ sends them automatically; call the API with `credentials: "include"`.
 | `POST /api/v1/auth/refresh/` | cookie | rotate access cookie from the refresh cookie |
 | `POST /api/v1/auth/logout/` | public | clear the JWT cookies |
 | `GET  /api/v1/auth/me/` | JWT | current user |
+| `GET  /api/v1/auth/users/?search=` | JWT | name/username autocomplete (assignee picker) |
 | `/api/v1/projects/` | JWT | CRUD — scoped to projects you own |
-| `/api/v1/tasks/` | JWT | CRUD — tasks assigned to you or in projects you own |
+| `/api/v1/tasks/` | JWT | CRUD — tasks assigned to you or in projects you own; filter by `status`/`priority`/`project`/`assigned_to`, `ordering` |
+| `GET  /api/v1/dashboard/` | JWT | counts: projects, tasks-by-status, overdue, due-this-week |
+| `GET  /api/schema/`, `/api/docs/` | public | OpenAPI schema + Swagger UI |
 
 Endpoints are secure-by-default (`IsAuthenticated`); public ones opt out with `AllowAny`.
 Object isolation is enforced by per-user querysets (others get `404`, not `403`).
@@ -57,7 +72,7 @@ redirects to `/login`, then to the `/board` kanban. (Env is kept per-project:
 Seed a demo user plus a sample project and tasks (idempotent — safe to re-run):
 
 ```bash
-docker compose exec backend uv run --no-sync python manage.py seed_demo
+docker compose exec backend python manage.py seed_demo
 # → user: demo  password: demo12345  (+ "Q3 Launch" project with 100 sample tasks)
 # → 10 teammates you can assign tasks to: nadia, theo, priya, … (password: <username>*123)
 ```
@@ -86,13 +101,13 @@ python manage.py collectstatic --noinput
 gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
 ```
 
-Caching uses Redis when `REDIS_URL` is set (the dashboard is cached per-user, 30s),
-in-memory otherwise. CI runs `ruff` + `pytest` (with coverage) + `vitest` —
-`.github/workflows/ci.yml`.
+Caching uses Redis when `REDIS_URL` is set (the dashboard is cached per-user for
+30s and invalidated immediately on task writes), in-memory otherwise. CI runs
+`ruff` + `pytest` (with coverage) + `vitest` — `.github/workflows/ci.yml`.
 
 ## Notes
 
 - Code is bind-mounted, so edits hot-reload in both containers.
 - No local `uv`/`node_modules` needed — everything installs inside the images.
 - Create a Django admin superuser instead:
-  `docker compose exec backend uv run --no-sync python manage.py createsuperuser`
+  `docker compose exec backend python manage.py createsuperuser`
