@@ -393,7 +393,7 @@ function Column({
       </div>
       <button
         onClick={onAdd}
-        className="mt-2 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-500 opacity-100 transition hover:bg-white hover:text-zinc-900 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+        className="mt-2 w-full rounded-lg px-3 py-2 text-center text-sm font-medium text-zinc-500 opacity-100 transition hover:bg-white hover:text-zinc-900 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
       >
         + Add task
       </button>
