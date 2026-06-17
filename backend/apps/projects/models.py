@@ -22,6 +22,7 @@ class Project(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [models.Index(fields=["owner", "-created_at"])]  # owner's list
 
     def __str__(self):
         return self.name
@@ -76,8 +77,11 @@ class Task(models.Model):
     class Meta:
         ordering = ["-priority", "due_date", "-created_at"]
         indexes = [
-            # FK columns (project, assigned_to) are indexed by Django already.
-            models.Index(fields=["status"]),
+            # Board column query: filter status, order by priority/due_date.
+            models.Index(fields=["status", "priority", "due_date"]),
+            # ?project=&status= filter combo (FK columns are auto-indexed too).
+            models.Index(fields=["project", "status"]),
+            # Dashboard overdue / due-this-week date math.
             models.Index(fields=["due_date"]),
         ]
 

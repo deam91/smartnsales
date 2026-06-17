@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db import connection
 from django.urls import include, path
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
@@ -11,6 +12,11 @@ from rest_framework.response import Response
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def health(request):
+    # Readiness: confirm the DB is reachable, not just that the process is up.
+    try:
+        connection.ensure_connection()
+    except Exception:
+        return Response({"status": "error", "database": "unreachable"}, status=503)
     return Response({"status": "ok"})
 
 

@@ -66,6 +66,14 @@ docker compose exec backend pytest      # backend — pytest-django (models, end
 docker compose exec frontend npm test   # frontend — vitest + React Testing Library
 ```
 
+## Production
+
+Settings are split: `config.settings.dev` (default) and `config.settings.prod`.
+For production set `DJANGO_SETTINGS_MODULE=config.settings.prod` — it refuses to
+boot without `DJANGO_SECRET_KEY` + `POSTGRES_PASSWORD`, and turns on SSL redirect,
+HSTS, and secure cookies. Tunables: `DJANGO_LOG_LEVEL`, `DJANGO_CONN_MAX_AGE`,
+`TRUST_PROXY_SSL_HEADER=1` (only behind a proxy that overwrites `X-Forwarded-Proto`).
+
 ## Notes
 
 - Code is bind-mounted, so edits hot-reload in both containers.

@@ -4,7 +4,6 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import viewsets
-from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -50,7 +49,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
     """CRUD for projects. A user only ever sees/edits projects they own."""
 
     serializer_class = ProjectSerializer
-    filter_backends = [OrderingFilter]
     ordering_fields = ["name", "created_at"]
 
     def get_queryset(self):
@@ -64,24 +62,13 @@ class TaskViewSet(viewsets.ModelViewSet):
     """CRUD for tasks visible to the user (assigned to them, or in a project they own)."""
 
     serializer_class = TaskSerializer
-    filter_backends = [OrderingFilter]
+    # django-filter validates these (bad value → 400) and documents them in the
+    # schema; easy to extend as the filter set grows.
+    filterset_fields = ["status", "priority", "project", "assigned_to"]
     ordering_fields = ["priority", "due_date", "status", "created_at", "updated_at"]
 
     def get_queryset(self):
         # Only assigned_to is read during list serialization (assignee_name).
-        # ponytail: the owner check in the serializer's validate() does one
-        # extra query for instance.project on an assignee PATCH — fine, it's rare.
-        qs = Task.objects.visible_to(self.request.user).select_related("assigned_to")
-        # Whitelisted exact-match filters. Numeric params are isdigit-guarded so
-        # a bad value is ignored rather than raising a 500. ponytail: a few lines
-        # beat pulling in django-filter for four exact-match fields.
-        params = self.request.query_params
-        if status := params.get("status"):
-            qs = qs.filter(status=status)
-        if (priority := params.get("priority")) and priority.isdigit():
-            qs = qs.filter(priority=priority)
-        if (project := params.get("project")) and project.isdigit():
-            qs = qs.filter(project_id=project)
-        if (assignee := params.get("assigned_to")) and assignee.isdigit():
-            qs = qs.filter(assigned_to_id=assignee)
-        return qs
+        # The owner check in the serializer's validate() does one extra query
+        # for instance.project on an assignee PATCH — fine, it's rare.
+        return Task.objects.visible_to(self.request.user).select_related("assigned_to")

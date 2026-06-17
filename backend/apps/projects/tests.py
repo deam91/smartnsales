@@ -124,11 +124,10 @@ class TaskFilterOrderingTests(APITestCase):
         rows = self.client.get("/api/tasks/?status=done").data["results"]
         self.assertEqual([t["title"] for t in rows], ["done1"])
 
-    def test_bad_numeric_filter_is_ignored(self):
-        # ?priority=abc must not 500; it's silently dropped → all tasks returned.
+    def test_bad_numeric_filter_rejected(self):
+        # django-filter validates: a non-numeric priority is a 400, not a 500.
         r = self.client.get("/api/tasks/?priority=abc")
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.data["count"], 2)
+        self.assertEqual(r.status_code, 400)
 
     def test_ordering(self):
         rows = self.client.get("/api/tasks/?ordering=status").data["results"]
