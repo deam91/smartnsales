@@ -44,14 +44,29 @@ const priorityLabel = (v: number) => PRIORITIES.find((p) => p.value === v)?.labe
 
 type Filters = { priority: string; project: string };
 
-// All client calls go through here: same-origin base, cookies, and an 8s
-// timeout (native AbortSignal) so a hung backend rejects instead of hanging.
+function getCookie(name: string): string | undefined {
+  return document.cookie
+    .split("; ")
+    .find((c) => c.startsWith(`${name}=`))
+    ?.split("=")[1];
+}
+
+// All client calls go through here: same-origin base, cookies, an 8s timeout
+// (native AbortSignal), and the CSRF token on unsafe methods (cookie auth
+// enforces CSRF; the token cookie is set on login).
 const REQUEST_TIMEOUT_MS = 8000;
 function clientFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const method = (init.method ?? "GET").toUpperCase();
+  const headers = new Headers(init.headers);
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    const csrf = getCookie("csrftoken");
+    if (csrf) headers.set("X-CSRFToken", csrf);
+  }
   return fetch(`${API}${path}`, {
     credentials: "include",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     ...init,
+    headers,
   });
 }
 
@@ -59,11 +74,11 @@ function tasksQuery(status: Task["status"], page: number, filters: Filters): str
   const p = new URLSearchParams({ status, page: String(page) });
   if (filters.priority) p.set("priority", filters.priority);
   if (filters.project) p.set("project", filters.project);
-  return `/api/tasks/?${p.toString()}`;
+  return `/api/v1/tasks/?${p.toString()}`;
 }
 
 async function patchTask(id: number, body: object): Promise<Task> {
-  const res = await clientFetch(`/api/tasks/${id}/`, {
+  const res = await clientFetch(`/api/v1/tasks/${id}/`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -122,7 +137,7 @@ export function Board({
   async function logout() {
     setLoggingOut(true);
     try {
-      const res = await clientFetch("/api/auth/logout/", { method: "POST" });
+      const res = await clientFetch("/api/v1/auth/logout/", { method: "POST" });
       if (!res.ok) throw new Error();
       // Only leave once the server confirmed it cleared/blacklisted the token.
       router.push("/login");
@@ -506,7 +521,7 @@ function TaskDetail({
   async function del() {
     setBusy(true);
     try {
-      const res = await clientFetch(`/api/tasks/${task.id}/`, { method: "DELETE" });
+      const res = await clientFetch(`/api/v1/tasks/${task.id}/`, { method: "DELETE" });
       if (!res.ok && res.status !== 204) throw new Error();
       onDelete(task.id);
       toast("Task deleted", "success");
@@ -595,7 +610,7 @@ export function AssigneePicker({ onSelect }: { onSelect: (u: UserOption) => void
     const handle = setTimeout(async () => {
       try {
         const res = await clientFetch(
-          `/api/auth/users/?search=${encodeURIComponent(term)}`,
+          `/api/v1/auth/users/?search=${encodeURIComponent(term)}`,
         );
         if (!res.ok) return;
         const data = await res.json();
@@ -697,7 +712,7 @@ function TaskForm({
     const fd = new FormData(e.currentTarget);
     setBusy(true);
     try {
-      const res = await clientFetch("/api/tasks/", {
+      const res = await clientFetch("/api/v1/tasks/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -788,7 +803,7 @@ function ProjectForm({
     const fd = new FormData(e.currentTarget);
     setBusy(true);
     try {
-      const res = await clientFetch("/api/projects/", {
+      const res = await clientFetch("/api/v1/projects/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

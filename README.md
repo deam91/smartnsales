@@ -23,16 +23,19 @@ sends them automatically; call the API with `credentials: "include"`.
 | Endpoint | Auth | Purpose |
 |---|---|---|
 | `GET  /api/health/` | public | health check |
-| `POST /api/auth/register/` | public | create user (`{username, email, password}`) |
-| `POST /api/auth/login/` | public | set httpOnly JWT cookies (`{username, password}`) |
-| `POST /api/auth/refresh/` | cookie | rotate access cookie from the refresh cookie |
-| `POST /api/auth/logout/` | public | clear the JWT cookies |
-| `GET  /api/auth/me/` | JWT | current user |
-| `/api/projects/` | JWT | CRUD — scoped to projects you own |
-| `/api/tasks/` | JWT | CRUD — tasks assigned to you or in projects you own |
+| `POST /api/v1/auth/register/` | public | create user (`{username, email, password}`) |
+| `POST /api/v1/auth/login/` | public | set httpOnly JWT cookies (`{username, password}`) |
+| `POST /api/v1/auth/refresh/` | cookie | rotate access cookie from the refresh cookie |
+| `POST /api/v1/auth/logout/` | public | clear the JWT cookies |
+| `GET  /api/v1/auth/me/` | JWT | current user |
+| `/api/v1/projects/` | JWT | CRUD — scoped to projects you own |
+| `/api/v1/tasks/` | JWT | CRUD — tasks assigned to you or in projects you own |
 
 Endpoints are secure-by-default (`IsAuthenticated`); public ones opt out with `AllowAny`.
 Object isolation is enforced by per-user querysets (others get `404`, not `403`).
+The data API is versioned under `/api/v1/` (`/api/health` and `/api/schema` stay
+unversioned). Cookie auth enforces **CSRF** on unsafe methods: login sets a
+`csrftoken` cookie and the client echoes it in the `X-CSRFToken` header.
 
 ## Run
 

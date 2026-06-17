@@ -88,10 +88,18 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    # ScopedRateThrottle only limits views that set throttle_scope (the auth
-    # endpoints) — everything else is unthrottled.
-    "DEFAULT_THROTTLE_CLASSES": ("rest_framework.throttling.ScopedRateThrottle",),
-    "DEFAULT_THROTTLE_RATES": {"auth": "10/min"},
+    # auth: tight limit on login/register (scoped). user/anon: broad anti-abuse
+    # ceilings on everything else.
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.ScopedRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.AnonRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {
+        "auth": "10/min",
+        "user": "600/min",
+        "anon": "60/min",
+    },
 }
 
 # Server-side revocation via the token_blacklist app: rotating on refresh
@@ -114,6 +122,13 @@ SPECTACULAR_SETTINGS = {
 JWT_ACCESS_COOKIE = "access_token"
 JWT_REFRESH_COOKIE = "refresh_token"
 JWT_COOKIE_SAMESITE = os.environ.get("JWT_COOKIE_SAMESITE", "Lax")
+
+# CSRF: cookie auth enforces it on unsafe methods (see CookieJWTAuthentication).
+# csrftoken is readable by JS (double-submit); the browser origin must be trusted.
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    "CSRF_TRUSTED_ORIGINS", "http://localhost:3000"
+).split(",")
+CSRF_COOKIE_SAMESITE = "Lax"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

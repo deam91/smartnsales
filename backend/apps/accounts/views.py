@@ -1,5 +1,7 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
 from rest_framework.filters import SearchFilter
@@ -44,6 +46,7 @@ class UserSearchView(generics.ListAPIView):
     queryset = get_user_model().objects.order_by("first_name", "username")
 
 
+@method_decorator(ensure_csrf_cookie, name="post")
 class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
     throttle_scope = "auth"

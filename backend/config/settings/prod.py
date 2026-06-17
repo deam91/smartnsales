@@ -14,6 +14,8 @@ if not SECRET_KEY:
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set in production.")
 if not os.environ.get("POSTGRES_PASSWORD"):
     raise ImproperlyConfigured("POSTGRES_PASSWORD must be set in production.")
+if not os.environ.get("DJANGO_ALLOWED_HOSTS"):
+    raise ImproperlyConfigured("DJANGO_ALLOWED_HOSTS must be set in production.")
 
 # HTTPS / secure-cookie hardening (addresses `check --deploy`).
 JWT_COOKIE_SECURE = os.environ.get("JWT_COOKIE_SECURE", "1") == "1"

@@ -13,7 +13,7 @@ type Dashboard = {
 // Server component: stats load already authenticated, so the page paints with
 // data (no client spinner).
 export default async function DashboardPage() {
-  const res = await apiGet("/api/dashboard/");
+  const res = await apiGet("/api/v1/dashboard/");
   if (res.status === 401) redirect("/login");
   if (!res.ok) throw new Error("Failed to load the dashboard."); // → error.tsx
   const d: Dashboard = await res.json();

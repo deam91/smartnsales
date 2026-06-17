@@ -9,7 +9,7 @@ const STATUSES = ["todo", "in_progress", "done"] as const;
 // so the board paints with data; columns lazy-load further pages on scroll.
 export default async function BoardPage() {
   const responses = await Promise.all(
-    STATUSES.map((s) => apiGet(`/api/tasks/?status=${s}&page=1`)),
+    STATUSES.map((s) => apiGet(`/api/v1/tasks/?status=${s}&page=1`)),
   );
   if (responses[0].status === 401) redirect("/login");
   if (responses.some((r) => !r.ok)) throw new Error("Failed to load tasks."); // → error.tsx
@@ -20,10 +20,10 @@ export default async function BoardPage() {
     initial[s] = { tasks: pages[i].results, hasMore: Boolean(pages[i].next) };
   });
 
-  const projects = await apiGetAll("/api/projects/");
+  const projects = await apiGetAll("/api/v1/projects/");
 
   // Current user id → the board only offers the assignee picker on projects you own.
-  const meRes = await apiGet("/api/auth/me/");
+  const meRes = await apiGet("/api/v1/auth/me/");
   const currentUserId = meRes.ok ? (await meRes.json()).id : null;
 
   return (

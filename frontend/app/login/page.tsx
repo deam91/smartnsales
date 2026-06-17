@@ -16,7 +16,7 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API}/api/auth/login/`, {
+      const res = await fetch(`${API}/api/v1/auth/login/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include", // store the httpOnly JWT cookies

@@ -22,9 +22,9 @@ def health(request):
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/health/", health),
-    path("api/auth/", include("apps.accounts.urls")),
-    path("api/", include("apps.projects.urls")),
+    path("api/health/", health),  # ops endpoint, unversioned
+    path("api/v1/auth/", include("apps.accounts.urls")),
+    path("api/v1/", include("apps.projects.urls")),
     # OpenAPI schema + Swagger UI (public so the docs render without a token).
     path(
         "api/schema/",

@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.validators import MinLengthValidator
 from django.db import models
 
 
@@ -48,7 +49,7 @@ class Task(models.Model):
         HIGH = 3, "High"
         URGENT = 4, "Urgent"
 
-    title = models.CharField(max_length=200)
+    title = models.CharField(max_length=200, validators=[MinLengthValidator(3)])
     description = models.TextField(blank=True, default="")
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.TODO
@@ -83,6 +84,8 @@ class Task(models.Model):
             models.Index(fields=["project", "status"]),
             # Dashboard overdue / due-this-week date math.
             models.Index(fields=["due_date"]),
+            # visible_to() assignee arm: assignee board filtered by status.
+            models.Index(fields=["assigned_to", "status"]),
         ]
 
     def __str__(self):

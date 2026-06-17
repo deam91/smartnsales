@@ -21,7 +21,7 @@ export async function middleware(request: NextRequest) {
   // /login). Acceptable; the next navigation renews cleanly.
   if (!hasAccess && refresh) {
     try {
-      const res = await fetch(`${API_URL}/api/auth/refresh/`, {
+      const res = await fetch(`${API_URL}/api/v1/auth/refresh/`, {
         method: "POST",
         headers: { Cookie: `refresh_token=${refresh}` },
         signal: AbortSignal.timeout(8000),

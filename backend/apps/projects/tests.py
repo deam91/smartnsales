@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -8,6 +9,15 @@ from rest_framework.test import APITestCase
 from .models import Project, Task
 
 User = get_user_model()
+
+
+class ModelValidationTests(TestCase):
+    def test_short_title_fails_model_full_clean(self):
+        # Guards the admin / shell write paths, not just the API serializer.
+        owner = User.objects.create_user("alice", password="x")
+        project = Project.objects.create(name="P", owner=owner)
+        with self.assertRaises(ValidationError):
+            Task(title="ab", project=project).full_clean()
 
 
 class VisibilityTests(TestCase):
@@ -42,24 +52,24 @@ class ProjectApiIsolationTests(APITestCase):
 
     def login(self, username):
         self.client.post(
-            "/api/auth/login/",
+            "/api/v1/auth/login/",
             {"username": username, "password": "x"},
             format="json",
         )
 
     def test_unauthenticated_blocked(self):
-        self.assertEqual(self.client.get("/api/projects/").status_code, 401)
+        self.assertEqual(self.client.get("/api/v1/projects/").status_code, 401)
 
     def test_users_only_see_own_projects(self):
         p = Project.objects.create(name="secret", owner=self.alice)
         self.login("bob")
-        listed = [row["id"] for row in self.client.get("/api/projects/").data["results"]]
+        listed = [row["id"] for row in self.client.get("/api/v1/projects/").data["results"]]
         self.assertNotIn(p.id, listed)
-        self.assertEqual(self.client.get(f"/api/projects/{p.id}/").status_code, 404)
+        self.assertEqual(self.client.get(f"/api/v1/projects/{p.id}/").status_code, 404)
 
     def test_create_sets_owner(self):
         self.login("alice")
-        r = self.client.post("/api/projects/", {"name": "mine"}, format="json")
+        r = self.client.post("/api/v1/projects/", {"name": "mine"}, format="json")
         self.assertEqual(r.status_code, 201)
         self.assertEqual(r.data["owner"], self.alice.id)
 
@@ -67,7 +77,7 @@ class ProjectApiIsolationTests(APITestCase):
         p = Project.objects.create(name="alice-only", owner=self.alice)
         self.login("bob")
         r = self.client.post(
-            "/api/tasks/", {"title": "valid title", "project": p.id}, format="json"
+            "/api/v1/tasks/", {"title": "valid title", "project": p.id}, format="json"
         )
         self.assertEqual(r.status_code, 400)
 
@@ -80,25 +90,25 @@ class ValidationTests(APITestCase):
 
     def test_short_task_title_rejected(self):
         r = self.client.post(
-            "/api/tasks/", {"title": "ab", "project": self.project.id}, format="json"
+            "/api/v1/tasks/", {"title": "ab", "project": self.project.id}, format="json"
         )
         self.assertEqual(r.status_code, 400)
         self.assertIn("title", r.data)
 
     def test_blank_task_title_rejected(self):
         r = self.client.post(
-            "/api/tasks/", {"title": "   ", "project": self.project.id}, format="json"
+            "/api/v1/tasks/", {"title": "   ", "project": self.project.id}, format="json"
         )
         self.assertEqual(r.status_code, 400)
 
     def test_blank_project_name_rejected(self):
-        r = self.client.post("/api/projects/", {"name": "  "}, format="json")
+        r = self.client.post("/api/v1/projects/", {"name": "  "}, format="json")
         self.assertEqual(r.status_code, 400)
         self.assertIn("name", r.data)
 
     def test_title_is_trimmed(self):
         r = self.client.post(
-            "/api/tasks/",
+            "/api/v1/tasks/",
             {"title": "  Trimmed title  ", "project": self.project.id},
             format="json",
         )
@@ -117,20 +127,20 @@ class TaskFilterOrderingTests(APITestCase):
             title="done1", project=self.project, status="done", priority=4
         )
         self.client.post(
-            "/api/auth/login/", {"username": "alice", "password": "x"}, format="json"
+            "/api/v1/auth/login/", {"username": "alice", "password": "x"}, format="json"
         )
 
     def test_filter_by_status(self):
-        rows = self.client.get("/api/tasks/?status=done").data["results"]
+        rows = self.client.get("/api/v1/tasks/?status=done").data["results"]
         self.assertEqual([t["title"] for t in rows], ["done1"])
 
     def test_bad_numeric_filter_rejected(self):
         # django-filter validates: a non-numeric priority is a 400, not a 500.
-        r = self.client.get("/api/tasks/?priority=abc")
+        r = self.client.get("/api/v1/tasks/?priority=abc")
         self.assertEqual(r.status_code, 400)
 
     def test_ordering(self):
-        rows = self.client.get("/api/tasks/?ordering=status").data["results"]
+        rows = self.client.get("/api/v1/tasks/?ordering=status").data["results"]
         statuses = [t["status"] for t in rows]
         self.assertEqual(statuses, sorted(statuses))
 
@@ -146,13 +156,13 @@ class TaskAssigneeTests(APITestCase):
 
     def test_assignee_name_in_payload(self):
         self.client.force_authenticate(self.alice)
-        row = self.client.get(f"/api/tasks/{self.task.id}/").data
+        row = self.client.get(f"/api/v1/tasks/{self.task.id}/").data
         self.assertEqual(row["assignee_name"], "bob")
 
     def test_owner_can_change_assignee(self):
         self.client.force_authenticate(self.alice)
         r = self.client.patch(
-            f"/api/tasks/{self.task.id}/", {"assigned_to": self.alice.id}, format="json"
+            f"/api/v1/tasks/{self.task.id}/", {"assigned_to": self.alice.id}, format="json"
         )
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.data["assignee_name"], "alice")
@@ -160,7 +170,7 @@ class TaskAssigneeTests(APITestCase):
     def test_owner_can_remove_assignee(self):
         self.client.force_authenticate(self.alice)
         r = self.client.patch(
-            f"/api/tasks/{self.task.id}/", {"assigned_to": None}, format="json"
+            f"/api/v1/tasks/{self.task.id}/", {"assigned_to": None}, format="json"
         )
         self.assertEqual(r.status_code, 200)
         self.assertIsNone(r.data["assignee_name"])
@@ -168,14 +178,14 @@ class TaskAssigneeTests(APITestCase):
     def test_non_owner_assignee_cannot_change_assignee(self):
         self.client.force_authenticate(self.bob)  # assigned, but not the owner
         r = self.client.patch(
-            f"/api/tasks/{self.task.id}/", {"assigned_to": self.alice.id}, format="json"
+            f"/api/v1/tasks/{self.task.id}/", {"assigned_to": self.alice.id}, format="json"
         )
         self.assertEqual(r.status_code, 400)
 
     def test_non_owner_assignee_can_still_change_status(self):
         self.client.force_authenticate(self.bob)
         r = self.client.patch(
-            f"/api/tasks/{self.task.id}/", {"status": "done"}, format="json"
+            f"/api/v1/tasks/{self.task.id}/", {"status": "done"}, format="json"
         )
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.data["status"], "done")
@@ -202,11 +212,11 @@ class DashboardTests(APITestCase):
         )
 
     def test_requires_authentication(self):
-        self.assertEqual(self.client.get("/api/dashboard/").status_code, 401)
+        self.assertEqual(self.client.get("/api/v1/dashboard/").status_code, 401)
 
     def test_counts(self):
         self.client.force_authenticate(self.user)
-        d = self.client.get("/api/dashboard/").data
+        d = self.client.get("/api/v1/dashboard/").data
         self.assertEqual(d["projects"], 1)
         self.assertEqual(d["tasks"], {"todo": 1, "in_progress": 1, "done": 1})
         self.assertEqual(d["overdue"], 1)  # done-late excluded
@@ -215,6 +225,6 @@ class DashboardTests(APITestCase):
     def test_scoped_to_user(self):
         bob = User.objects.create_user("bob", password="x")
         self.client.force_authenticate(bob)
-        d = self.client.get("/api/dashboard/").data
+        d = self.client.get("/api/v1/dashboard/").data
         self.assertEqual(d["projects"], 0)
         self.assertEqual(d["overdue"], 0)
