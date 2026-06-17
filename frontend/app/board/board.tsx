@@ -231,7 +231,8 @@ export function Board({
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {/* Mobile: horizontal swipe carousel (scroll-snap). Desktop: 3-col grid. */}
+      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
         {COLUMNS.map((col) => (
           <Column
             key={col.key}
@@ -344,7 +345,7 @@ function Column({
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      className={`group flex max-h-[calc(100dvh-11rem)] flex-col rounded-2xl border p-3 transition ${
+      className={`group flex max-h-[calc(100dvh-11rem)] w-[85vw] shrink-0 snap-center flex-col rounded-2xl border p-3 transition md:w-auto md:shrink ${
         dragOver
           ? "border-emerald-400/60 bg-emerald-50/50 ring-2 ring-emerald-500/30"
           : "border-zinc-200/70 bg-zinc-100/60"
