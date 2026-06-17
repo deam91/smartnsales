@@ -25,7 +25,7 @@ class VisibilityTests(TestCase):
         self.assertEqual(set(Project.objects.visible_to(self.carol)), set())
 
     def test_task_visibility(self):
-        # Strict: only the assignee sees the task — not the project owner.
+        # Assignee sees their task; project owner sees tasks in their project.
         self.assertIn(self.task, Task.objects.visible_to(self.bob))
-        self.assertNotIn(self.task, Task.objects.visible_to(self.alice))
+        self.assertIn(self.task, Task.objects.visible_to(self.alice))
         self.assertEqual(list(Task.objects.visible_to(self.carol)), [])

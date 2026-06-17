@@ -29,8 +29,10 @@ class Project(models.Model):
 
 class TaskQuerySet(models.QuerySet):
     def visible_to(self, user):
-        # Strict: a user sees only the tasks assigned to them.
-        return self.filter(assigned_to=user)
+        # Tasks assigned to the user, plus every task in projects they own.
+        return self.filter(
+            models.Q(assigned_to=user) | models.Q(project__owner=user)
+        )
 
     def with_related(self):
         return self.select_related("project", "assigned_to")
