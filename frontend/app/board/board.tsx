@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -15,6 +15,7 @@ export type Task = {
   project: number;
 };
 export type Project = { id: number; name: string };
+export type BoardInit = Record<Task["status"], { tasks: Task[]; hasMore: boolean }>;
 
 const COLUMNS: { key: Task["status"]; label: string }[] = [
   { key: "todo", label: "To Do" },
@@ -52,19 +53,40 @@ const PRIMARY_BTN =
   "rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 active:scale-[0.98] disabled:opacity-50";
 
 export function Board({
-  initialTasks,
+  initial,
   initialProjects,
 }: {
-  initialTasks: Task[];
+  initial: BoardInit;
   initialProjects: Project[];
 }) {
-  const [tasks, setTasks] = useState(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>(() => [
+    ...initial.todo.tasks,
+    ...initial.in_progress.tasks,
+    ...initial.done.tasks,
+  ]);
   const [projects, setProjects] = useState(initialProjects);
+  const [page, setPage] = useState<Record<Task["status"], number>>({
+    todo: 1,
+    in_progress: 1,
+    done: 1,
+  });
+  const [hasMore, setHasMore] = useState<Record<Task["status"], boolean>>({
+    todo: initial.todo.hasMore,
+    in_progress: initial.in_progress.hasMore,
+    done: initial.done.hasMore,
+  });
+  const loadingRef = useRef<Record<Task["status"], boolean>>({
+    todo: false,
+    in_progress: false,
+    done: false,
+  });
+
   const [selected, setSelected] = useState<Task | null>(null);
   const [creatingTask, setCreatingTask] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
   const [dragOver, setDragOver] = useState<Task["status"] | null>(null);
 
+  // New/edited/moved task: prepend if new, replace in place otherwise.
   function upsert(task: Task) {
     setTasks((prev) => {
       const i = prev.findIndex((t) => t.id === task.id);
@@ -74,6 +96,30 @@ export function Board({
       return next;
     });
   }
+
+  const loadMore = useCallback(
+    async (status: Task["status"]) => {
+      if (loadingRef.current[status] || !hasMore[status]) return;
+      loadingRef.current[status] = true;
+      const next = page[status] + 1;
+      try {
+        const res = await fetch(`${API}/api/tasks/?status=${status}&page=${next}`, {
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setTasks((prev) => {
+          const ids = new Set(prev.map((t) => t.id));
+          return [...prev, ...data.results.filter((t: Task) => !ids.has(t.id))];
+        });
+        setPage((p) => ({ ...p, [status]: next }));
+        setHasMore((h) => ({ ...h, [status]: Boolean(data.next) }));
+      } finally {
+        loadingRef.current[status] = false;
+      }
+    },
+    [page, hasMore],
+  );
 
   // Drag-and-drop move: optimistic, reverted if the PATCH fails.
   async function move(taskId: number, status: Task["status"]) {
@@ -89,7 +135,7 @@ export function Board({
 
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6">
-      <header className="mb-8 flex items-center justify-between gap-3">
+      <header className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Board</h1>
           <p className="text-sm text-zinc-500">Drag a card between columns to move it.</p>
@@ -108,66 +154,29 @@ export function Board({
       </header>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {COLUMNS.map((col) => {
-          const colTasks = tasks.filter((t) => t.status === col.key);
-          const active = dragOver === col.key;
-          return (
-            <section
-              key={col.key}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(col.key);
-              }}
-              onDragLeave={() => setDragOver((s) => (s === col.key ? null : s))}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOver(null);
-                const id = Number(e.dataTransfer.getData("text/plain"));
-                if (id) move(id, col.key);
-              }}
-              className={`rounded-2xl border p-3 transition ${
-                active
-                  ? "border-emerald-400/60 bg-emerald-50/50 ring-2 ring-emerald-500/30"
-                  : "border-zinc-200/70 bg-zinc-100/60"
-              }`}
-            >
-              <h2 className="mb-3 flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                {col.label}
-                <span className="rounded-full bg-white px-2 py-0.5 text-zinc-400 tabular-nums">
-                  {colTasks.length}
-                </span>
-              </h2>
-              <ul className="space-y-2">
-                {colTasks.map((t, i) => (
-                  <li
-                    key={t.id}
-                    draggable
-                    onDragStart={(e) => e.dataTransfer.setData("text/plain", String(t.id))}
-                    className="animate-rise"
-                    style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}
-                  >
-                    <button
-                      onClick={() => setSelected(t)}
-                      className="w-full cursor-grab rounded-xl border border-zinc-200/80 bg-white p-3 text-left shadow-[0_1px_2px_rgba(24,24,27,0.04)] transition hover:-translate-y-px hover:shadow-[0_8px_20px_-8px_rgba(24,24,27,0.15)] active:translate-y-0 active:scale-[0.99] active:cursor-grabbing"
-                    >
-                      <div className="text-sm font-medium text-zinc-900">{t.title}</div>
-                      <span
-                        className={`mt-2 inline-block rounded-md px-1.5 py-0.5 text-xs font-medium ${PRIORITY_CLASS[t.priority]}`}
-                      >
-                        {priorityLabel(t.priority)}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-                {colTasks.length === 0 && (
-                  <li className="rounded-xl border border-dashed border-zinc-200 px-3 py-6 text-center text-xs text-zinc-400">
-                    Drop tasks here
-                  </li>
-                )}
-              </ul>
-            </section>
-          );
-        })}
+        {COLUMNS.map((col) => (
+          <Column
+            key={col.key}
+            status={col.key}
+            label={col.label}
+            tasks={tasks.filter((t) => t.status === col.key)}
+            hasMore={hasMore[col.key]}
+            dragOver={dragOver === col.key}
+            onLoadMore={loadMore}
+            onSelect={setSelected}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(col.key);
+            }}
+            onDragLeave={() => setDragOver((s) => (s === col.key ? null : s))}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(null);
+              const id = Number(e.dataTransfer.getData("text/plain"));
+              if (id) move(id, col.key);
+            }}
+          />
+        ))}
       </div>
 
       {selected && (
@@ -204,6 +213,103 @@ export function Board({
         />
       )}
     </div>
+  );
+}
+
+function Column({
+  status,
+  label,
+  tasks,
+  hasMore,
+  dragOver,
+  onLoadMore,
+  onSelect,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+}: {
+  status: Task["status"];
+  label: string;
+  tasks: Task[];
+  hasMore: boolean;
+  dragOver: boolean;
+  onLoadMore: (status: Task["status"]) => void;
+  onSelect: (t: Task) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLLIElement>(null);
+
+  // Load the next page when the bottom sentinel scrolls into the column's view.
+  useEffect(() => {
+    if (!hasMore) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) onLoadMore(status);
+      },
+      { root: scrollRef.current, rootMargin: "150px" },
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [hasMore, status, onLoadMore]);
+
+  return (
+    <section
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className={`flex max-h-[calc(100dvh-9rem)] flex-col rounded-2xl border p-3 transition ${
+        dragOver
+          ? "border-emerald-400/60 bg-emerald-50/50 ring-2 ring-emerald-500/30"
+          : "border-zinc-200/70 bg-zinc-100/60"
+      }`}
+    >
+      <h2 className="mb-3 flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        {label}
+        <span className="rounded-full bg-white px-2 py-0.5 text-zinc-400 tabular-nums">
+          {tasks.length}
+        </span>
+      </h2>
+      <div ref={scrollRef} className="-mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
+        <ul className="space-y-2">
+          {tasks.map((t, i) => (
+            <li
+              key={t.id}
+              draggable
+              onDragStart={(e) => e.dataTransfer.setData("text/plain", String(t.id))}
+              className="animate-rise"
+              style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}
+            >
+              <button
+                onClick={() => onSelect(t)}
+                className="w-full cursor-grab rounded-xl border border-zinc-200/80 bg-white p-3 text-left shadow-[0_1px_2px_rgba(24,24,27,0.04)] transition hover:-translate-y-px hover:shadow-[0_8px_20px_-8px_rgba(24,24,27,0.15)] active:translate-y-0 active:scale-[0.99] active:cursor-grabbing"
+              >
+                <div className="text-sm font-medium text-zinc-900">{t.title}</div>
+                <span
+                  className={`mt-2 inline-block rounded-md px-1.5 py-0.5 text-xs font-medium ${PRIORITY_CLASS[t.priority]}`}
+                >
+                  {priorityLabel(t.priority)}
+                </span>
+              </button>
+            </li>
+          ))}
+          {hasMore && (
+            <li ref={sentinelRef} className="py-3 text-center text-xs text-zinc-400">
+              Loading…
+            </li>
+          )}
+          {!hasMore && tasks.length === 0 && (
+            <li className="rounded-xl border border-dashed border-zinc-200 px-3 py-6 text-center text-xs text-zinc-400">
+              Drop tasks here
+            </li>
+          )}
+        </ul>
+      </div>
+    </section>
   );
 }
 
@@ -432,59 +538,6 @@ function ProjectForm({
   );
 }
 
-// Native <dialog> slide-over: showModal() gives focus-trap + Esc + top layer for
-// free. closedby="any" isn't Baseline (no Safari), so light-dismiss uses the
-// backdrop-click fallback (target === the dialog element).
-function Slideover({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    ref.current?.showModal();
-  }, []);
-
-  return (
-    <dialog
-      ref={ref}
-      aria-label={title}
-      onClose={onClose}
-      onClick={(e) => {
-        if (e.target === ref.current) ref.current?.close();
-      }}
-      className="m-0 ml-auto h-dvh max-h-dvh w-full max-w-md rounded-l-2xl bg-white p-0 shadow-2xl backdrop:bg-zinc-900/40 backdrop:backdrop-blur-sm"
-    >
-      <div className="flex h-full flex-col overflow-y-auto p-6">
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-          <button
-            type="button"
-            onClick={() => ref.current?.close()}
-            aria-label="Close"
-            className="-m-1 rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
-          >
-            <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden="true">
-              <path
-                d="M4 4l8 8M12 4l-8 8"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-        {children}
-      </div>
-    </dialog>
-  );
-}
-
 // Centered confirmation modal (native <dialog>: focus-trap + Esc for free).
 function ConfirmDialog({
   title,
@@ -535,6 +588,59 @@ function ConfirmDialog({
         >
           {busy ? "Deleting…" : confirmLabel}
         </button>
+      </div>
+    </dialog>
+  );
+}
+
+// Native <dialog> slide-over: showModal() gives focus-trap + Esc + top layer for
+// free. closedby="any" isn't Baseline (no Safari), so light-dismiss uses the
+// backdrop-click fallback (target === the dialog element).
+function Slideover({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+
+  return (
+    <dialog
+      ref={ref}
+      aria-label={title}
+      onClose={onClose}
+      onClick={(e) => {
+        if (e.target === ref.current) ref.current?.close();
+      }}
+      className="m-0 ml-auto h-dvh max-h-dvh w-full max-w-md rounded-l-2xl bg-white p-0 shadow-2xl backdrop:bg-zinc-900/40 backdrop:backdrop-blur-sm"
+    >
+      <div className="flex h-full flex-col overflow-y-auto p-6">
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+          <button
+            type="button"
+            onClick={() => ref.current?.close()}
+            aria-label="Close"
+            className="-m-1 rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
+          >
+            <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden="true">
+              <path
+                d="M4 4l8 8M12 4l-8 8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+        {children}
       </div>
     </dialog>
   );
