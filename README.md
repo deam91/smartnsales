@@ -2,11 +2,11 @@
 
 Django (DRF API) backend + Next.js frontend + PostgreSQL behind an nginx reverse
 proxy, containerized with Docker Compose. **Everything is served from one origin
-(http://localhost)** — nginx routes `/api/*` (and `/admin/`) to Django and
+(http://localhost:3000)** — nginx routes `/api/*` (and `/admin/`) to Django and
 everything else to Next.js, so the browser talks to a single same-origin host.
 
 ```
-nginx       reverse proxy  → http://localhost   (the only published port)
+nginx       reverse proxy  → http://localhost:3000   (the only published port)
   /api/*, /admin/  → backend
   everything else  → frontend
 backend/    Django 5 + DRF (JWT)            (internal :8000)
@@ -45,7 +45,7 @@ cp frontend/.env.example frontend/.env     # frontend config
 docker compose up --build
 ```
 
-The backend auto-runs migrations on startup. Open **http://localhost** — it
+The backend auto-runs migrations on startup. Open **http://localhost:3000** — it
 redirects to `/login`, then to the `/board` kanban. (Env is kept per-project:
 `backend/.env` and `frontend/.env`, not a single root file.)
 
