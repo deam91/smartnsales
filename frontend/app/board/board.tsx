@@ -220,6 +220,7 @@ function TaskDetail({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirming, setConfirming] = useState(false);
 
   async function setStatus(status: Task["status"]) {
     onChange({ ...task, status }); // instant; sync below
@@ -245,6 +246,7 @@ function TaskDetail({
     } catch {
       setError("Could not delete task.");
       setBusy(false);
+      setConfirming(false);
     }
   }
 
@@ -270,12 +272,21 @@ function TaskDetail({
       </dl>
       {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
       <button
-        onClick={del}
-        disabled={busy}
-        className="mt-8 rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50 active:scale-[0.98] disabled:opacity-50"
+        onClick={() => setConfirming(true)}
+        className="mt-8 rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50 active:scale-[0.98]"
       >
         Delete task
       </button>
+      {confirming && (
+        <ConfirmDialog
+          title="Delete task?"
+          message={`"${task.title}" will be permanently deleted.`}
+          confirmLabel="Delete"
+          busy={busy}
+          onConfirm={del}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
     </Slideover>
   );
 }
@@ -469,6 +480,61 @@ function Slideover({
           </button>
         </div>
         {children}
+      </div>
+    </dialog>
+  );
+}
+
+// Centered confirmation modal (native <dialog>: focus-trap + Esc for free).
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+
+  return (
+    <dialog
+      ref={ref}
+      aria-label={title}
+      onClose={onCancel}
+      onClick={(e) => {
+        if (e.target === ref.current) ref.current?.close();
+      }}
+      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl bg-white p-6 shadow-2xl backdrop:bg-zinc-900/40 backdrop:backdrop-blur-sm"
+    >
+      <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+      <p className="mt-2 text-sm text-zinc-600">{message}</p>
+      <div className="mt-6 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => ref.current?.close()}
+          className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 active:scale-[0.98]"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={busy}
+          className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-rose-500 active:scale-[0.98] disabled:opacity-50"
+        >
+          {busy ? "Deleting…" : confirmLabel}
+        </button>
       </div>
     </dialog>
   );
