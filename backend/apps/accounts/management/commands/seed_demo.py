@@ -7,11 +7,35 @@ DEFAULT_USERNAME = "demo"
 DEFAULT_PASSWORD = "demo12345"
 PROJECT_NAME = "Q3 Launch"
 
-SAMPLE_TASKS = [
-    ("Draft pricing page copy", Task.Status.TODO, Task.Priority.HIGH),
-    ("Audit onboarding emails", Task.Status.TODO, Task.Priority.MEDIUM),
-    ("Migrate billing webhooks", Task.Status.IN_PROGRESS, Task.Priority.URGENT),
-    ("Ship dark-mode tokens", Task.Status.DONE, Task.Priority.LOW),
+STATUSES = [Task.Status.TODO, Task.Status.IN_PROGRESS, Task.Status.DONE]
+PRIORITIES = [
+    Task.Priority.LOW,
+    Task.Priority.MEDIUM,
+    Task.Priority.HIGH,
+    Task.Priority.URGENT,
+]
+# 20 tasks (matches the board's PAGE_SIZE so they all show on the first page).
+TASK_TITLES = [
+    "Draft pricing page copy",
+    "Audit onboarding emails",
+    "Migrate billing webhooks",
+    "Ship dark-mode tokens",
+    "Add CSV export to reports",
+    "Fix flaky checkout test",
+    "Rotate API signing keys",
+    "Compress hero imagery",
+    "Write the incident runbook",
+    "Deprecate legacy v1 endpoints",
+    "Tune the Postgres connection pool",
+    "Localize the settings screen",
+    "Add rate limiting to login",
+    "Backfill missing invoices",
+    "Instrument funnel analytics",
+    "Refactor the email queue worker",
+    "Add keyboard shortcuts to the board",
+    "Review the vendor security questionnaire",
+    "Archive stale feature flags",
+    "Wire up usage-based billing alerts",
 ]
 
 
@@ -39,12 +63,12 @@ class Command(BaseCommand):
                     project=project,
                     assigned_to=user,
                     title=title,
-                    status=status,
-                    priority=priority,
+                    status=STATUSES[i % len(STATUSES)],
+                    priority=PRIORITIES[i % len(PRIORITIES)],
                 )
-                for title, status, priority in SAMPLE_TASKS
+                for i, title in enumerate(TASK_TITLES)
             )
-            created_tasks = len(SAMPLE_TASKS)
+            created_tasks = len(TASK_TITLES)
 
         self.stdout.write(
             self.style.SUCCESS(
