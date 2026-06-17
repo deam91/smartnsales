@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from apps.projects.models import Project, Task
 
@@ -87,6 +90,7 @@ class Command(BaseCommand):
         created_tasks = 0
         if not project.tasks.exists():  # don't duplicate on re-run
             assignees = [user, *team]  # cycle so cards show varied @usernames
+            today = timezone.localdate()
             Task.objects.bulk_create(
                 Task(
                     project=project,
@@ -94,6 +98,9 @@ class Command(BaseCommand):
                     title=_title(i),
                     status=STATUSES[i % len(STATUSES)],
                     priority=PRIORITIES[i % len(PRIORITIES)],
+                    # Spread due dates -3..+5 days so the dashboard shows
+                    # real overdue / due-this-week counts.
+                    due_date=today + timedelta(days=(i % 9) - 3),
                 )
                 for i in range(TASK_COUNT)
             )

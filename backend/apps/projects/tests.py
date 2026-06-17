@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from .models import Project, Task
@@ -143,3 +146,42 @@ class TaskAssigneeTests(APITestCase):
         )
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.data["status"], "done")
+
+
+class DashboardTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("alice", password="x")
+        self.project = Project.objects.create(name="P", owner=self.user)
+        today = timezone.localdate()
+        # overdue (past + not done), due-soon (in 2 days), and a done-overdue
+        # that must NOT count as overdue.
+        Task.objects.create(
+            title="overdue", project=self.project, status="todo",
+            due_date=today - timedelta(days=1),
+        )
+        Task.objects.create(
+            title="soon", project=self.project, status="in_progress",
+            due_date=today + timedelta(days=2),
+        )
+        Task.objects.create(
+            title="done-late", project=self.project, status="done",
+            due_date=today - timedelta(days=2),
+        )
+
+    def test_requires_authentication(self):
+        self.assertEqual(self.client.get("/api/dashboard/").status_code, 401)
+
+    def test_counts(self):
+        self.client.force_authenticate(self.user)
+        d = self.client.get("/api/dashboard/").data
+        self.assertEqual(d["projects"], 1)
+        self.assertEqual(d["tasks"], {"todo": 1, "in_progress": 1, "done": 1})
+        self.assertEqual(d["overdue"], 1)  # done-late excluded
+        self.assertEqual(d["due_this_week"], 1)
+
+    def test_scoped_to_user(self):
+        bob = User.objects.create_user("bob", password="x")
+        self.client.force_authenticate(bob)
+        d = self.client.get("/api/dashboard/").data
+        self.assertEqual(d["projects"], 0)
+        self.assertEqual(d["overdue"], 0)

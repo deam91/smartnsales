@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -221,6 +222,12 @@ export function Board({
           <p className="text-sm text-zinc-500">Drag a card between columns to move it.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard"
+            className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
+          >
+            Dashboard
+          </Link>
           <button
             onClick={() => setCreatingProject(true)}
             className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 active:scale-[0.98]"

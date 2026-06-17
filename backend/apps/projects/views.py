@@ -1,8 +1,47 @@
+from datetime import timedelta
+
+from django.db.models import Count, Q
+from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.filters import OrderingFilter
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import Project, Task
 from .serializers import ProjectSerializer, TaskSerializer
+
+
+class DashboardView(APIView):
+    """Aggregate counts for the current user (two queries, all DB-side)."""
+
+    def get(self, request):
+        user = request.user
+        today = timezone.localdate()
+        not_done = ~Q(status=Task.Status.DONE)
+
+        counts = Task.objects.visible_to(user).aggregate(
+            todo=Count("id", filter=Q(status=Task.Status.TODO)),
+            in_progress=Count("id", filter=Q(status=Task.Status.IN_PROGRESS)),
+            done=Count("id", filter=Q(status=Task.Status.DONE)),
+            overdue=Count("id", filter=Q(due_date__lt=today) & not_done),
+            due_this_week=Count(
+                "id",
+                filter=Q(due_date__gte=today, due_date__lte=today + timedelta(days=7))
+                & not_done,
+            ),
+        )
+        return Response(
+            {
+                "projects": Project.objects.visible_to(user).count(),
+                "tasks": {
+                    "todo": counts["todo"],
+                    "in_progress": counts["in_progress"],
+                    "done": counts["done"],
+                },
+                "overdue": counts["overdue"],
+                "due_this_week": counts["due_this_week"],
+            }
+        )
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
