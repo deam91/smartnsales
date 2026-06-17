@@ -734,7 +734,7 @@ function TaskForm({
   }
 
   return (
-    <Slideover title="New task" onClose={onClose}>
+    <Modal title="New task" onClose={onClose}>
       {projects.length === 0 ? (
         <p className="text-sm text-zinc-600">
           Create a project first (use the <strong>New project</strong> button).
@@ -784,7 +784,7 @@ function TaskForm({
           </button>
         </form>
       )}
-    </Slideover>
+    </Modal>
   );
 }
 
@@ -821,7 +821,7 @@ function ProjectForm({
   }
 
   return (
-    <Slideover title="New project" onClose={onClose}>
+    <Modal title="New project" onClose={onClose}>
       <form onSubmit={onSubmit} className="space-y-4 text-sm">
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-zinc-700">Name</label>
@@ -835,7 +835,7 @@ function ProjectForm({
           {busy ? "Creating…" : "Create project"}
         </button>
       </form>
-    </Slideover>
+    </Modal>
   );
 }
 
@@ -890,6 +890,55 @@ function ConfirmDialog({
           {busy ? "Deleting…" : confirmLabel}
         </button>
       </div>
+    </dialog>
+  );
+}
+
+// Centered modal (native <dialog>): focus-trap + Esc free; backdrop-click closes.
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+
+  return (
+    <dialog
+      ref={ref}
+      aria-label={title}
+      onClose={onClose}
+      onClick={(e) => {
+        if (e.target === ref.current) ref.current?.close();
+      }}
+      className="m-auto max-h-[85dvh] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl backdrop:bg-zinc-900/40 backdrop:backdrop-blur-sm"
+    >
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+        <button
+          type="button"
+          onClick={() => ref.current?.close()}
+          aria-label="Close"
+          className="-m-1 rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
+        >
+          <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden="true">
+            <path
+              d="M4 4l8 8M12 4l-8 8"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+      {children}
     </dialog>
   );
 }
