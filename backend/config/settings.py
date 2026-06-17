@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -9,7 +10,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 # ponytail: dev fallback so it boots without env; prod MUST set DJANGO_SECRET_KEY.
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-insecure-change-me")
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY", "dev-insecure-secret-key-change-me-in-production"
+)
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
@@ -22,6 +25,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
+    "apps.accounts",
     "apps.projects",
 ]
 
@@ -70,16 +74,31 @@ DATABASES = {
 CORS_ALLOWED_ORIGINS = os.environ.get(
     "CORS_ALLOWED_ORIGINS", "http://localhost:3000"
 ).split(",")
+# Needed so the browser sends/stores the httpOnly JWT cookies cross-origin.
+CORS_ALLOW_CREDENTIALS = True
 
 # Secure by default: endpoints require a JWT unless they opt out with AllowAny.
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "apps.accounts.authentication.CookieJWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
 }
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+}
+
+# JWTs live in httpOnly cookies (never in JS/localStorage).
+JWT_ACCESS_COOKIE = "access_token"
+JWT_REFRESH_COOKIE = "refresh_token"
+# Secure=True in prod (https). SameSite=Lax works for same-site localhost dev.
+JWT_COOKIE_SECURE = os.environ.get("JWT_COOKIE_SECURE", "0") == "1"
+JWT_COOKIE_SAMESITE = os.environ.get("JWT_COOKIE_SAMESITE", "Lax")
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

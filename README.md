@@ -10,14 +10,23 @@ db          PostgreSQL 17
 
 ## API
 
+JWTs are stored in **httpOnly cookies** (`access_token` / `refresh_token`) set by the
+backend on login — never returned in the body and never accessible to JS. The browser
+sends them automatically; call the API with `credentials: "include"`.
+
 | Endpoint | Auth | Purpose |
 |---|---|---|
 | `GET  /api/health/` | public | health check |
-| `POST /api/token/` | public | obtain JWT (`{username, password}`) → `{access, refresh}` |
-| `POST /api/token/refresh/` | public | refresh access token (`{refresh}`) |
-| `GET  /api/me/` | JWT | current user (send `Authorization: Bearer <access>`) |
+| `POST /api/auth/register/` | public | create user (`{username, email, password}`) |
+| `POST /api/auth/login/` | public | set httpOnly JWT cookies (`{username, password}`) |
+| `POST /api/auth/refresh/` | cookie | rotate access cookie from the refresh cookie |
+| `POST /api/auth/logout/` | public | clear the JWT cookies |
+| `GET  /api/auth/me/` | JWT | current user |
+| `/api/projects/` | JWT | CRUD — scoped to projects you own |
+| `/api/tasks/` | JWT | CRUD — tasks assigned to you or in projects you own |
 
 Endpoints are secure-by-default (`IsAuthenticated`); public ones opt out with `AllowAny`.
+Object isolation is enforced by per-user querysets (others get `404`, not `403`).
 
 ## Run
 
