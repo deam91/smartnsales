@@ -11,3 +11,24 @@ export async function apiGet(path: string): Promise<Response> {
     cache: "no-store",
   });
 }
+
+// Follow DRF's `next` pagination and return every result.
+// ponytail: one request per page (O(n/page_size)); fine for a board, switch to
+// per-column lazy loading if a single board ever holds thousands of tasks.
+export async function apiGetAll(
+  path: string,
+): Promise<{ ok: boolean; status: number; results: unknown[] }> {
+  const results: unknown[] = [];
+  for (let page = 1; ; page++) {
+    const sep = path.includes("?") ? "&" : "?";
+    const res = await apiGet(`${path}${sep}page=${page}`);
+    if (!res.ok) {
+      if (page === 1) return { ok: false, status: res.status, results: [] };
+      break; // stop at the first failing page, return what we have
+    }
+    const data = await res.json();
+    results.push(...data.results);
+    if (!data.next) break;
+  }
+  return { ok: true, status: 200, results };
+}

@@ -14,7 +14,7 @@ PRIORITIES = [
     Task.Priority.HIGH,
     Task.Priority.URGENT,
 ]
-# 20 tasks (matches the board's PAGE_SIZE so they all show on the first page).
+TASK_COUNT = 100
 TASK_TITLES = [
     "Draft pricing page copy",
     "Audit onboarding emails",
@@ -37,6 +37,12 @@ TASK_TITLES = [
     "Archive stale feature flags",
     "Wire up usage-based billing alerts",
 ]
+
+
+def _title(i: int) -> str:
+    base = TASK_TITLES[i % len(TASK_TITLES)]
+    batch = i // len(TASK_TITLES)
+    return base if batch == 0 else f"{base} #{batch + 1}"
 
 
 class Command(BaseCommand):
@@ -62,13 +68,13 @@ class Command(BaseCommand):
                 Task(
                     project=project,
                     assigned_to=user,
-                    title=title,
+                    title=_title(i),
                     status=STATUSES[i % len(STATUSES)],
                     priority=PRIORITIES[i % len(PRIORITIES)],
                 )
-                for i, title in enumerate(TASK_TITLES)
+                for i in range(TASK_COUNT)
             )
-            created_tasks = len(TASK_TITLES)
+            created_tasks = TASK_COUNT
 
         self.stdout.write(
             self.style.SUCCESS(

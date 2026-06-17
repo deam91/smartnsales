@@ -144,7 +144,7 @@ export function Board({
                     draggable
                     onDragStart={(e) => e.dataTransfer.setData("text/plain", String(t.id))}
                     className="animate-rise"
-                    style={{ animationDelay: `${i * 50}ms` }}
+                    style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}
                   >
                     <button
                       onClick={() => setSelected(t)}
