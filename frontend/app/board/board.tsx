@@ -222,14 +222,13 @@ function TaskDetail({
   const [error, setError] = useState("");
 
   async function setStatus(status: Task["status"]) {
-    setBusy(true);
+    onChange({ ...task, status }); // instant; sync below
     setError("");
     try {
       onChange(await patchTask(task.id, { status }));
     } catch {
+      onChange(task); // revert
       setError("Could not update status.");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -258,9 +257,8 @@ function TaskDetail({
         <Field label="Status">
           <select
             value={task.status}
-            disabled={busy}
             onChange={(e) => setStatus(e.target.value as Task["status"])}
-            className="rounded-lg border border-zinc-200 px-2 py-1.5 text-sm outline-none transition focus:ring-2 focus:ring-emerald-500/30 disabled:opacity-50"
+            className="rounded-lg border border-zinc-200 px-2 py-1.5 text-sm outline-none transition focus:ring-2 focus:ring-emerald-500/30"
           >
             {COLUMNS.map((c) => (
               <option key={c.key} value={c.key}>
