@@ -39,12 +39,21 @@ cp frontend/.env.example frontend/.env
 docker compose up --build
 ```
 
-The backend auto-runs migrations on startup; the frontend page fetches the
-backend health endpoint to confirm the two are wired together.
+The backend auto-runs migrations on startup. Open the frontend at
+http://localhost:3000 — it redirects to `/login`, then to the `/board` kanban.
+
+## Default login
+
+Seed a default user to log in with (idempotent — re-run to reset the password):
+
+```bash
+docker compose exec backend uv run --no-sync python manage.py seed_user
+# → user: demo  password: demo12345
+```
 
 ## Notes
 
 - Code is bind-mounted, so edits hot-reload in both containers.
 - No local `uv`/`node_modules` needed — everything installs inside the images.
-- Create a Django superuser (then you can hit `/api/token/` + `/api/me/`):
+- Create a Django admin superuser instead:
   `docker compose exec backend uv run --no-sync python manage.py createsuperuser`
