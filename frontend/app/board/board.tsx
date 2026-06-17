@@ -36,6 +36,15 @@ const PRIORITY_CLASS: Record<number, string> = {
 };
 const priorityLabel = (v: number) => PRIORITIES.find((p) => p.value === v)?.label ?? "—";
 
+type Filters = { priority: string; project: string };
+
+function tasksQuery(status: Task["status"], page: number, filters: Filters): string {
+  const p = new URLSearchParams({ status, page: String(page) });
+  if (filters.priority) p.set("priority", filters.priority);
+  if (filters.project) p.set("project", filters.project);
+  return `/api/tasks/?${p.toString()}`;
+}
+
 async function patchTask(id: number, body: object): Promise<Task> {
   const res = await fetch(`${API}/api/tasks/${id}/`, {
     method: "PATCH",
@@ -49,6 +58,8 @@ async function patchTask(id: number, body: object): Promise<Task> {
 
 const INPUT =
   "w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none transition focus:border-zinc-400 focus:ring-2 focus:ring-emerald-500/30";
+const FILTER =
+  "rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 outline-none transition focus:ring-2 focus:ring-emerald-500/30";
 const PRIMARY_BTN =
   "rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 active:scale-[0.98] disabled:opacity-50";
 
@@ -82,9 +93,10 @@ export function Board({
   });
 
   const [selected, setSelected] = useState<Task | null>(null);
-  const [creatingTask, setCreatingTask] = useState(false);
+  const [addStatus, setAddStatus] = useState<Task["status"] | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
   const [dragOver, setDragOver] = useState<Task["status"] | null>(null);
+  const [filters, setFilters] = useState<Filters>({ priority: "", project: "" });
 
   // New/edited/moved task: prepend if new, replace in place otherwise.
   function upsert(task: Task) {
@@ -103,7 +115,7 @@ export function Board({
       loadingRef.current[status] = true;
       const next = page[status] + 1;
       try {
-        const res = await fetch(`${API}/api/tasks/?status=${status}&page=${next}`, {
+        const res = await fetch(`${API}${tasksQuery(status, next, filters)}`, {
           credentials: "include",
         });
         if (!res.ok) return;
@@ -118,8 +130,42 @@ export function Board({
         loadingRef.current[status] = false;
       }
     },
-    [page, hasMore],
+    [page, hasMore, filters],
   );
+
+  // Re-fetch page 1 of every column when a filter changes (skip first mount —
+  // SSR already provided the unfiltered first page).
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const cols = await Promise.all(
+        COLUMNS.map(async (c) => {
+          const res = await fetch(`${API}${tasksQuery(c.key, 1, filters)}`, {
+            credentials: "include",
+          });
+          const data = res.ok ? await res.json() : { results: [], next: null };
+          return { key: c.key, results: data.results as Task[], hasMore: Boolean(data.next) };
+        }),
+      );
+      if (cancelled) return;
+      setTasks(cols.flatMap((c) => c.results));
+      setPage({ todo: 1, in_progress: 1, done: 1 });
+      setHasMore(
+        Object.fromEntries(cols.map((c) => [c.key, c.hasMore])) as Record<
+          Task["status"],
+          boolean
+        >,
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [filters]);
 
   // Drag-and-drop move: optimistic, reverted if the PATCH fails.
   async function move(taskId: number, status: Task["status"]) {
@@ -140,18 +186,50 @@ export function Board({
           <h1 className="text-2xl font-semibold tracking-tight">Board</h1>
           <p className="text-sm text-zinc-500">Drag a card between columns to move it.</p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setCreatingProject(true)}
-            className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 active:scale-[0.98]"
-          >
-            New project
-          </button>
-          <button onClick={() => setCreatingTask(true)} className={PRIMARY_BTN}>
-            New task
-          </button>
-        </div>
+        <button
+          onClick={() => setCreatingProject(true)}
+          className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 active:scale-[0.98]"
+        >
+          New project
+        </button>
       </header>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <select
+          aria-label="Filter by priority"
+          value={filters.priority}
+          onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value }))}
+          className={FILTER}
+        >
+          <option value="">All priorities</option>
+          {PRIORITIES.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Filter by project"
+          value={filters.project}
+          onChange={(e) => setFilters((f) => ({ ...f, project: e.target.value }))}
+          className={FILTER}
+        >
+          <option value="">All projects</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        {(filters.priority || filters.project) && (
+          <button
+            onClick={() => setFilters({ priority: "", project: "" })}
+            className="text-sm text-zinc-500 transition hover:text-zinc-800"
+          >
+            Clear
+          </button>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {COLUMNS.map((col) => (
@@ -164,6 +242,7 @@ export function Board({
             dragOver={dragOver === col.key}
             onLoadMore={loadMore}
             onSelect={setSelected}
+            onAdd={() => setAddStatus(col.key)}
             onDragOver={(e) => {
               e.preventDefault();
               setDragOver(col.key);
@@ -193,13 +272,14 @@ export function Board({
           }}
         />
       )}
-      {creatingTask && (
+      {addStatus && (
         <TaskForm
+          status={addStatus}
           projects={projects}
-          onClose={() => setCreatingTask(false)}
+          onClose={() => setAddStatus(null)}
           onCreated={(t) => {
             upsert(t);
-            setCreatingTask(false);
+            setAddStatus(null);
           }}
         />
       )}
@@ -224,6 +304,7 @@ function Column({
   dragOver,
   onLoadMore,
   onSelect,
+  onAdd,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -235,6 +316,7 @@ function Column({
   dragOver: boolean;
   onLoadMore: (status: Task["status"]) => void;
   onSelect: (t: Task) => void;
+  onAdd: () => void;
   onDragOver: (e: React.DragEvent) => void;
   onDragLeave: () => void;
   onDrop: (e: React.DragEvent) => void;
@@ -262,7 +344,7 @@ function Column({
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      className={`flex max-h-[calc(100dvh-9rem)] flex-col rounded-2xl border p-3 transition ${
+      className={`group flex max-h-[calc(100dvh-11rem)] flex-col rounded-2xl border p-3 transition ${
         dragOver
           ? "border-emerald-400/60 bg-emerald-50/50 ring-2 ring-emerald-500/30"
           : "border-zinc-200/70 bg-zinc-100/60"
@@ -274,7 +356,7 @@ function Column({
           {tasks.length}
         </span>
       </h2>
-      <div ref={scrollRef} className="-mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
+      <div ref={scrollRef} className="scroll-stylish -mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
         <ul className="space-y-2">
           {tasks.map((t, i) => (
             <li
@@ -309,6 +391,12 @@ function Column({
           )}
         </ul>
       </div>
+      <button
+        onClick={onAdd}
+        className="mt-2 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-500 opacity-100 transition hover:bg-white hover:text-zinc-900 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+      >
+        + Add task
+      </button>
     </section>
   );
 }
@@ -398,10 +486,12 @@ function TaskDetail({
 }
 
 function TaskForm({
+  status,
   projects,
   onClose,
   onCreated,
 }: {
+  status: Task["status"];
   projects: Project[];
   onClose: () => void;
   onCreated: (t: Task) => void;
@@ -422,6 +512,7 @@ function TaskForm({
         body: JSON.stringify({
           title: fd.get("title"),
           description: fd.get("description"),
+          status,
           priority: Number(fd.get("priority")),
           due_date: fd.get("due_date") || null,
           project: Number(fd.get("project")),

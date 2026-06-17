@@ -24,3 +24,22 @@
     animation: none;
   }
 }
+
+/* Slim, rounded scrollbar that darkens on hover. */
+.scroll-stylish {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(212 212 216) transparent; /* zinc-300 */
+}
+.scroll-stylish::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-stylish::-webkit-scrollbar-thumb {
+  background: rgb(212 212 216);
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+}
+.scroll-stylish:hover::-webkit-scrollbar-thumb {
+  background: rgb(161 161 170); /* zinc-400 */
+  background-clip: padding-box;
+}
