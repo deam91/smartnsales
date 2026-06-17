@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.claude/
+
+# Build output
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local files
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.sqlite3
+backend/staticfiles/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
