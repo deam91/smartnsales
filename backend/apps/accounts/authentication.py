@@ -1,4 +1,5 @@
 from django.conf import settings
+from drf_spectacular.extensions import OpenApiAuthenticationExtension
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 
@@ -17,3 +18,12 @@ class CookieJWTAuthentication(JWTAuthentication):
 
         validated_token = self.get_validated_token(raw_token)
         return self.get_user(validated_token), validated_token
+
+
+# Lets drf-spectacular document the cookie auth (else it warns it can't resolve it).
+class CookieJWTScheme(OpenApiAuthenticationExtension):
+    target_class = "apps.accounts.authentication.CookieJWTAuthentication"
+    name = "cookieAuth"
+
+    def get_security_definition(self, auto_schema):
+        return {"type": "apiKey", "in": "cookie", "name": settings.JWT_ACCESS_COOKIE}

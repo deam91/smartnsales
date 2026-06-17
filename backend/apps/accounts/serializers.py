@@ -6,9 +6,20 @@ User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ("id", "username")
+        fields = ("id", "username", "name")
+
+    def get_name(self, obj) -> str:
+        return obj.get_full_name() or obj.username
+
+
+class DetailSerializer(serializers.Serializer):
+    """Shape of the `{ "detail": "..." }` responses (for the OpenAPI schema)."""
+
+    detail = serializers.CharField()
 
 
 class RegisterSerializer(serializers.ModelSerializer):

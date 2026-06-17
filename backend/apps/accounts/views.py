@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -10,7 +11,7 @@ from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from .serializers import RegisterSerializer, UserSerializer
+from .serializers import DetailSerializer, RegisterSerializer, UserSerializer
 
 ACCESS_MAX_AGE = int(jwt_settings.ACCESS_TOKEN_LIFETIME.total_seconds())
 REFRESH_MAX_AGE = int(jwt_settings.REFRESH_TOKEN_LIFETIME.total_seconds())
@@ -31,20 +32,23 @@ def _set_cookie(response, key, value, max_age):
 class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = RegisterSerializer
+    throttle_scope = "auth"
 
 
 class UserSearchView(generics.ListAPIView):
-    """Username autocomplete for the assignee picker (prefix match)."""
+    """Autocomplete for the assignee picker — matches name or username."""
 
     serializer_class = UserSerializer
     filter_backends = [SearchFilter]
-    search_fields = ["^username"]
-    queryset = get_user_model().objects.order_by("username")
+    search_fields = ["first_name", "last_name", "username"]
+    queryset = get_user_model().objects.order_by("first_name", "username")
 
 
 class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
+    throttle_scope = "auth"
 
+    @extend_schema(responses=DetailSerializer)
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -58,6 +62,7 @@ class LoginView(TokenObtainPairView):
 class RefreshView(TokenRefreshView):
     permission_classes = [AllowAny]
 
+    @extend_schema(responses=DetailSerializer)
     def post(self, request, *args, **kwargs):
         raw_refresh = request.COOKIES.get(settings.JWT_REFRESH_COOKIE)
         if not raw_refresh:
@@ -82,6 +87,7 @@ class RefreshView(TokenRefreshView):
 class LogoutView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(responses=DetailSerializer)
     def post(self, request, *args, **kwargs):
         raw_refresh = request.COOKIES.get(settings.JWT_REFRESH_COOKIE)
         if raw_refresh:
@@ -98,6 +104,6 @@ class LogoutView(APIView):
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=UserSerializer)
     def get(self, request, *args, **kwargs):
-        user = request.user
-        return Response({"id": user.id, "username": user.username, "email": user.email})
+        return Response(UserSerializer(request.user).data)

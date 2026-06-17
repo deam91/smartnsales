@@ -16,11 +16,11 @@ export type Task = {
   priority: number;
   due_date: string | null;
   assigned_to: number | null;
-  assignee_username: string | null;
+  assignee_name: string | null;
   project: number;
 };
 export type Project = { id: number; name: string; owner: number };
-type UserOption = { id: number; username: string };
+type UserOption = { id: number; username: string; name: string };
 export type BoardInit = Record<Task["status"], { tasks: Task[]; hasMore: boolean }>;
 
 const COLUMNS: { key: Task["status"]; label: string }[] = [
@@ -432,8 +432,8 @@ function Column({
                   >
                     {priorityLabel(t.priority)}
                   </span>
-                  {t.assignee_username && (
-                    <span className="truncate text-xs text-zinc-400">@{t.assignee_username}</span>
+                  {t.assignee_name && (
+                    <span className="truncate text-xs text-zinc-400">{t.assignee_name}</span>
                   )}
                 </div>
               </button>
@@ -493,8 +493,8 @@ function TaskDetail({
       const updated = await patchTask(task.id, { assigned_to: userId });
       onChange(updated);
       toast(
-        updated.assignee_username
-          ? `Assigned to @${updated.assignee_username}`
+        updated.assignee_name
+          ? `Assigned to ${updated.assignee_name}`
           : "Assignee removed",
         "success",
       );
@@ -527,7 +527,7 @@ function TaskDetail({
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-zinc-900">
-                {task.assignee_username ? `@${task.assignee_username}` : "Unassigned"}
+                {task.assignee_name ?? "Unassigned"}
               </span>
               {canAssign && task.assigned_to != null && (
                 <button
@@ -634,25 +634,20 @@ export function AssigneePicker({ onSelect }: { onSelect: (u: UserOption) => void
 
   return (
     <div className="relative">
-      <div className="flex items-center rounded-lg border border-zinc-200 px-2 focus-within:ring-2 focus-within:ring-emerald-500/30">
-        <span aria-hidden="true" className="text-sm text-zinc-400">
-          @
-        </span>
-        <input
-          type="text"
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={listId}
-          aria-autocomplete="list"
-          aria-label="Assign to username"
-          aria-activedescendant={active >= 0 ? `assignee-opt-${active}` : undefined}
-          placeholder="username"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={onKeyDown}
-          className="w-full bg-transparent px-1 py-1.5 text-sm outline-none"
-        />
-      </div>
+      <input
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-label="Assign to a teammate"
+        aria-activedescendant={active >= 0 ? `assignee-opt-${active}` : undefined}
+        placeholder="Search teammates by name"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={onKeyDown}
+        className="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-sm outline-none transition focus:ring-2 focus:ring-emerald-500/30"
+      />
       {open && results.length > 0 && (
         <ul
           id={listId}
@@ -674,7 +669,7 @@ export function AssigneePicker({ onSelect }: { onSelect: (u: UserOption) => void
                 i === active ? "bg-emerald-50 text-emerald-800" : "text-zinc-700"
               }`}
             >
-              @{u.username}
+              {u.name}
             </li>
           ))}
         </ul>
@@ -733,7 +728,13 @@ function TaskForm({
         <form onSubmit={onSubmit} className="space-y-4 text-sm">
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium text-zinc-700">Title</label>
-            <input name="title" required className={INPUT} />
+            <input
+              name="title"
+              required
+              minLength={3}
+              maxLength={200}
+              className={INPUT}
+            />
           </div>
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium text-zinc-700">Description</label>
@@ -809,7 +810,7 @@ function ProjectForm({
       <form onSubmit={onSubmit} className="space-y-4 text-sm">
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-zinc-700">Name</label>
-          <input name="name" required className={INPUT} />
+          <input name="name" required maxLength={200} className={INPUT} />
         </div>
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-zinc-700">Description</label>

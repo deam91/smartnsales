@@ -10,17 +10,17 @@ DEFAULT_USERNAME = "demo"
 DEFAULT_PASSWORD = "demo12345"
 PROJECT_NAME = "Q3 Launch"
 # Teammates the project owner can assign tasks to (login: <username>*123).
-TEAM_USERNAMES = [
-    "nadia",
-    "theo",
-    "priya",
-    "marcus",
-    "lena",
-    "omar",
-    "sofia",
-    "yusuf",
-    "greta",
-    "dmitri",
+TEAM = [
+    ("nadia", "Nadia", "Owusu"),
+    ("theo", "Theo", "Lindqvist"),
+    ("priya", "Priya", "Raman"),
+    ("marcus", "Marcus", "Bauer"),
+    ("lena", "Lena", "Hoffmann"),
+    ("omar", "Omar", "Haddad"),
+    ("sofia", "Sofia", "Marchetti"),
+    ("yusuf", "Yusuf", "Demir"),
+    ("greta", "Greta", "Novak"),
+    ("dmitri", "Dmitri", "Sokolov"),
 ]
 
 STATUSES = [Task.Status.TODO, Task.Status.IN_PROGRESS, Task.Status.DONE]
@@ -69,16 +69,18 @@ class Command(BaseCommand):
         user, _ = User.objects.get_or_create(
             username=DEFAULT_USERNAME, defaults={"email": "demo@example.com"}
         )
+        user.first_name, user.last_name = "Demo", "User"
         user.set_password(DEFAULT_PASSWORD)  # idempotent: always (re)sets it
-        user.save(update_fields=["password"])
+        user.save(update_fields=["first_name", "last_name", "password"])
 
         team = []
-        for username in TEAM_USERNAMES:
+        for username, first, last in TEAM:
             member, _ = User.objects.get_or_create(
                 username=username, defaults={"email": f"{username}@example.com"}
             )
+            member.first_name, member.last_name = first, last
             member.set_password(f"{username}*123")  # real login: <username>*123
-            member.save(update_fields=["password"])
+            member.save(update_fields=["first_name", "last_name", "password"])
             team.append(member)
 
         project, _ = Project.objects.get_or_create(

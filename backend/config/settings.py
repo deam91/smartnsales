@@ -86,6 +86,10 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # ScopedRateThrottle only limits views that set throttle_scope (the auth
+    # endpoints) — everything else is unthrottled.
+    "DEFAULT_THROTTLE_CLASSES": ("rest_framework.throttling.ScopedRateThrottle",),
+    "DEFAULT_THROTTLE_RATES": {"auth": "10/min"},
 }
 
 # Server-side revocation via the token_blacklist app: rotating on refresh

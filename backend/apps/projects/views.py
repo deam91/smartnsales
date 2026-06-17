@@ -2,18 +2,20 @@ from datetime import timedelta
 
 from django.db.models import Count, Q
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema
 from rest_framework import viewsets
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Project, Task
-from .serializers import ProjectSerializer, TaskSerializer
+from .serializers import DashboardSerializer, ProjectSerializer, TaskSerializer
 
 
 class DashboardView(APIView):
     """Aggregate counts for the current user (two queries, all DB-side)."""
 
+    @extend_schema(responses=DashboardSerializer)
     def get(self, request):
         user = request.user
         today = timezone.localdate()
@@ -66,9 +68,10 @@ class TaskViewSet(viewsets.ModelViewSet):
     ordering_fields = ["priority", "due_date", "status", "created_at", "updated_at"]
 
     def get_queryset(self):
-        qs = Task.objects.visible_to(self.request.user).select_related(
-            "project", "assigned_to"
-        )
+        # Only assigned_to is read during list serialization (assignee_name).
+        # ponytail: the owner check in the serializer's validate() does one
+        # extra query for instance.project on an assignee PATCH — fine, it's rare.
+        qs = Task.objects.visible_to(self.request.user).select_related("assigned_to")
         # Whitelisted exact-match filters. Numeric params are isdigit-guarded so
         # a bad value is ignored rather than raising a 500. ponytail: a few lines
         # beat pulling in django-filter for four exact-match fields.

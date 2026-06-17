@@ -67,9 +67,43 @@ class ProjectApiIsolationTests(APITestCase):
         p = Project.objects.create(name="alice-only", owner=self.alice)
         self.login("bob")
         r = self.client.post(
-            "/api/tasks/", {"title": "x", "project": p.id}, format="json"
+            "/api/tasks/", {"title": "valid title", "project": p.id}, format="json"
         )
         self.assertEqual(r.status_code, 400)
+
+
+class ValidationTests(APITestCase):
+    def setUp(self):
+        self.alice = User.objects.create_user("alice", password="x")
+        self.project = Project.objects.create(name="P", owner=self.alice)
+        self.client.force_authenticate(self.alice)
+
+    def test_short_task_title_rejected(self):
+        r = self.client.post(
+            "/api/tasks/", {"title": "ab", "project": self.project.id}, format="json"
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("title", r.data)
+
+    def test_blank_task_title_rejected(self):
+        r = self.client.post(
+            "/api/tasks/", {"title": "   ", "project": self.project.id}, format="json"
+        )
+        self.assertEqual(r.status_code, 400)
+
+    def test_blank_project_name_rejected(self):
+        r = self.client.post("/api/projects/", {"name": "  "}, format="json")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("name", r.data)
+
+    def test_title_is_trimmed(self):
+        r = self.client.post(
+            "/api/tasks/",
+            {"title": "  Trimmed title  ", "project": self.project.id},
+            format="json",
+        )
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.data["title"], "Trimmed title")
 
 
 class TaskFilterOrderingTests(APITestCase):
@@ -111,10 +145,10 @@ class TaskAssigneeTests(APITestCase):
             title="t", project=self.project, assigned_to=self.bob
         )
 
-    def test_assignee_username_in_payload(self):
+    def test_assignee_name_in_payload(self):
         self.client.force_authenticate(self.alice)
         row = self.client.get(f"/api/tasks/{self.task.id}/").data
-        self.assertEqual(row["assignee_username"], "bob")
+        self.assertEqual(row["assignee_name"], "bob")
 
     def test_owner_can_change_assignee(self):
         self.client.force_authenticate(self.alice)
@@ -122,7 +156,7 @@ class TaskAssigneeTests(APITestCase):
             f"/api/tasks/{self.task.id}/", {"assigned_to": self.alice.id}, format="json"
         )
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.data["assignee_username"], "alice")
+        self.assertEqual(r.data["assignee_name"], "alice")
 
     def test_owner_can_remove_assignee(self):
         self.client.force_authenticate(self.alice)
@@ -130,7 +164,7 @@ class TaskAssigneeTests(APITestCase):
             f"/api/tasks/{self.task.id}/", {"assigned_to": None}, format="json"
         )
         self.assertEqual(r.status_code, 200)
-        self.assertIsNone(r.data["assignee_username"])
+        self.assertIsNone(r.data["assignee_name"])
 
     def test_non_owner_assignee_cannot_change_assignee(self):
         self.client.force_authenticate(self.bob)  # assigned, but not the owner
