@@ -103,13 +103,24 @@ export function Board({
   const [dragOver, setDragOver] = useState<Task["status"] | null>(null);
   const [filters, setFilters] = useState<Filters>({ priority: "", project: "" });
   const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
 
   async function logout() {
+    setLoggingOut(true);
+    setLogoutError("");
     try {
-      await fetch(`${API}/api/auth/logout/`, { method: "POST", credentials: "include" });
-    } finally {
+      const res = await fetch(`${API}/api/auth/logout/`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error();
+      // Only leave once the server confirmed it cleared/blacklisted the token.
       router.push("/login");
       router.refresh();
+    } catch {
+      setLogoutError("Could not log out. Check your connection and try again.");
+      setLoggingOut(false);
     }
   }
 
@@ -210,12 +221,18 @@ export function Board({
           </button>
           <button
             onClick={logout}
-            className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 active:scale-[0.98]"
+            disabled={loggingOut}
+            className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 active:scale-[0.98] disabled:opacity-50"
           >
-            Log out
+            {loggingOut ? "Logging out…" : "Log out"}
           </button>
         </div>
       </header>
+      {logoutError && (
+        <p role="alert" className="mb-4 text-sm text-rose-600">
+          {logoutError}
+        </p>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <select
