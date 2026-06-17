@@ -228,3 +228,26 @@ class DashboardTests(APITestCase):
         d = self.client.get("/api/v1/dashboard/").data
         self.assertEqual(d["projects"], 0)
         self.assertEqual(d["overdue"], 0)
+
+
+class DashboardCacheInvalidationTests(APITestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user("alice", password="x")
+        self.project = Project.objects.create(name="P", owner=self.owner)
+
+    def test_owner_dashboard_refreshes_after_creating_a_task(self):
+        self.client.force_authenticate(self.owner)
+        before = self.client.get("/api/v1/dashboard/").data["tasks"]["todo"]  # caches
+        Task.objects.create(title="brand new", project=self.project, status="todo")
+        after = self.client.get("/api/v1/dashboard/").data["tasks"]["todo"]
+        self.assertEqual(after, before + 1)  # cache was invalidated, not stale
+
+    def test_assignee_dashboard_refreshes_when_assigned_by_owner(self):
+        bob = User.objects.create_user("bob", password="x")
+        self.client.force_authenticate(bob)
+        self.assertEqual(self.client.get("/api/v1/dashboard/").data["tasks"]["todo"], 0)  # caches
+        # The owner assigns bob — bob's cached dashboard must be cleared.
+        Task.objects.create(
+            title="for bob", project=self.project, assigned_to=bob, status="todo"
+        )
+        self.assertEqual(self.client.get("/api/v1/dashboard/").data["tasks"]["todo"], 1)
