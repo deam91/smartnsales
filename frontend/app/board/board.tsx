@@ -458,7 +458,7 @@ function Slideover({
       onClick={(e) => {
         if (e.target === ref.current) ref.current?.close();
       }}
-      className="m-0 ml-auto h-dvh w-full max-w-md rounded-l-2xl bg-white p-0 shadow-2xl backdrop:bg-zinc-900/40 backdrop:backdrop-blur-sm"
+      className="m-0 ml-auto h-dvh max-h-dvh w-full max-w-md rounded-l-2xl bg-white p-0 shadow-2xl backdrop:bg-zinc-900/40 backdrop:backdrop-blur-sm"
     >
       <div className="flex h-full flex-col overflow-y-auto p-6">
         <div className="mb-6 flex items-start justify-between gap-4">
