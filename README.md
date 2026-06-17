@@ -52,6 +52,13 @@ docker compose exec backend uv run --no-sync python manage.py seed_demo
 # → 10 teammates you can assign tasks to: nadia, theo, priya, … (password: <username>*123)
 ```
 
+## Testing
+
+```bash
+docker compose exec backend pytest      # backend — pytest-django (models, endpoints, auth, permissions)
+docker compose exec frontend npm test   # frontend — vitest + React Testing Library
+```
+
 ## Notes
 
 - Code is bind-mounted, so edits hot-reload in both containers.
