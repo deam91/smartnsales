@@ -38,3 +38,7 @@ backend/staticfiles/
 .next/
 out/
 next-env.d.ts
+
+# Playwright MCP artifacts
+.playwright-mcp/
+*.png
