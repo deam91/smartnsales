@@ -1,11 +1,17 @@
 # SmartNSales
 
-Django (DRF API) backend + Next.js frontend + PostgreSQL, containerized with Docker Compose.
+Django (DRF API) backend + Next.js frontend + PostgreSQL behind an nginx reverse
+proxy, containerized with Docker Compose. **Everything is served from one origin
+(http://localhost)** — nginx routes `/api/*` (and `/admin/`) to Django and
+everything else to Next.js, so the browser talks to a single same-origin host.
 
 ```
-backend/    Django 5 + DRF (JWT) → http://localhost:8000
-frontend/   Next.js (App Router) → http://localhost:3000  (Tailwind, server + client components)
-db          PostgreSQL 17
+nginx       reverse proxy  → http://localhost   (the only published port)
+  /api/*, /admin/  → backend
+  everything else  → frontend
+backend/    Django 5 + DRF (JWT)            (internal :8000)
+frontend/   Next.js (App Router, Tailwind)  (internal :3000)
+db          PostgreSQL 17                   (internal)
 ```
 
 ## API
@@ -34,13 +40,14 @@ Each project has its own env file (already created with dev defaults). For a
 fresh clone, copy the examples first:
 
 ```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
+cp backend/.env.example backend/.env      # backend + db config
+cp frontend/.env.example frontend/.env     # frontend config
 docker compose up --build
 ```
 
-The backend auto-runs migrations on startup. Open the frontend at
-http://localhost:3000 — it redirects to `/login`, then to the `/board` kanban.
+The backend auto-runs migrations on startup. Open **http://localhost** — it
+redirects to `/login`, then to the `/board` kanban. (Env is kept per-project:
+`backend/.env` and `frontend/.env`, not a single root file.)
 
 ## Default login
 

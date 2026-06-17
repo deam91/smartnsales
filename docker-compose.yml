@@ -15,8 +15,9 @@ services:
     env_file: ./backend/.env
     volumes:
       - ./backend:/app
-    ports:
-      - "8000:8000"
+    # No published port: reachable only via nginx on the internal network.
+    expose:
+      - "8000"
     depends_on:
       db:
         condition: service_healthy
@@ -27,10 +28,20 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     depends_on:
       - backend
+
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"  # the only published port — http://localhost
+    depends_on:
+      - backend
+      - frontend
 
 volumes:
   pgdata:

@@ -135,4 +135,7 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000  # 1 year
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    # Opt-in only: trusting X-Forwarded-Proto is safe only when the proxy
+    # OVERWRITES it (nginx does) and the backend port isn't publicly reachable.
+    if os.environ.get("TRUST_PROXY_SSL_HEADER") == "1":
+        SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
