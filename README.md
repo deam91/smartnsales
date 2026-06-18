@@ -15,6 +15,16 @@ db          PostgreSQL 17                   (internal)
 redis       cache (dashboard)              (internal)
 ```
 
+<img width="1252" height="1216" alt="Screenshot 2026-06-18 at 02 02 28" src="https://github.com/user-attachments/assets/0c8558c5-0f76-496c-91f8-14a0626b54db" />
+
+<img width="731" height="509" alt="Screenshot 2026-06-18 at 02 02 50" src="https://github.com/user-attachments/assets/2e6bb171-6b37-417f-9629-9aac7fba0305" />
+
+<img width="643" height="776" alt="Screenshot 2026-06-18 at 02 03 07" src="https://github.com/user-attachments/assets/8d5e4dd3-b8e7-40f3-971b-31f98a254d82" />
+
+<img width="1163" height="522" alt="Screenshot 2026-06-18 at 02 03 15" src="https://github.com/user-attachments/assets/5bca1ce9-2759-4b1f-b6b2-c9c7b40fcf7e" />
+
+
+
 ## Features
 
 - **Kanban board** — To Do / In Progress / Done with drag-and-drop, optimistic
